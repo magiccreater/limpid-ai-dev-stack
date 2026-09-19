@@ -1,0 +1,10 @@
+# Copy to C:\Users\<YourUsername>\.wslconfig then run: wsl --shutdown
+[wsl2]
+memory=24GB
+swap=8GB
+processors=8
+localhostForwarding=true
+
+[experimental]
+autoMemoryReclaim=gradual
+sparseVhd=true

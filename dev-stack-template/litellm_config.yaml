@@ -1,0 +1,55 @@
+model_list:
+  # ---------- Local (Intel Arc / llama.cpp) ----------
+  - model_name: local-coder
+    litellm_params:
+      model: openai/qwen2.5-coder-7b
+      api_base: http://localhost:8080/v1
+      api_key: none
+      timeout: 300
+
+  # ---------- Strong open models via OpenRouter ----------
+  - model_name: open-deepseek
+    litellm_params:
+      model: openrouter/deepseek/deepseek-chat  # swap to deepseek-v4-flash when available
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 120
+
+  - model_name: open-glm
+    litellm_params:
+      model: openrouter/z-ai/glm-4.5  # update to current best GLM coding model
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 120
+
+  - model_name: open-qwen
+    litellm_params:
+      model: openrouter/qwen/qwen3-coder
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 120
+
+  # ---------- Frontier fallbacks ----------
+  - model_name: cloud-reasoner
+    litellm_params:
+      model: openrouter/anthropic/claude-3.5-sonnet
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 180
+
+  - model_name: cloud-deepseek-r1
+    litellm_params:
+      model: openrouter/deepseek/deepseek-r1
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 180
+
+  # ---------- Hybrid: local first → open → frontier ----------
+  - model_name: hybrid-agent
+    litellm_params:
+      model: openai/qwen2.5-coder-7b
+      api_base: http://localhost:8080/v1
+      api_key: none
+    fallbacks: ["open-deepseek", "open-glm", "cloud-reasoner"]
+
+general_settings:
+  master_key: sk-dev-proxy-key
+  # drop_params: true
+
+# NOTE: TypeSafe Jev (~typesafe/jev-latest) is NOT a chat model.
+# Use shared/jev_client.py (Decisions API) for routing / classification.

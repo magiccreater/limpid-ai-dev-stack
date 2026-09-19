@@ -1,0 +1,63 @@
+# Dev Stack justfile — run with: just <recipe>
+# Install just: https://github.com/casey/just
+
+set dotenv-load := true
+
+default:
+  @just --list
+
+# ---------- Core services ----------
+
+setup:
+  ./setup.sh
+  @echo "Run: source ~/.bashrc"
+
+llama:
+  ./scripts/start_llama_server.sh
+
+litellm:
+  # Requires: pip install 'litellm[proxy]' or uv tool
+  litellm --config litellm_config.yaml --port 4000 --host 0.0.0.0
+
+mysql:
+  docker compose -f docker/docker-compose.mysql.yml up -d
+
+openclaw:
+  openclaw gateway
+
+rag:
+  docker compose -f docker/docker-compose.rag.yml up -d
+
+status:
+  @echo "=== Ports ==="
+  @ss -tlnp 2>/dev/null | grep -E ':(8080|4000|3306|18789)' || netstat -tlnp 2>/dev/null | grep -E ':(8080|4000|3306|18789)' || true
+  @echo "=== Docker ==="
+  @docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+
+# ---------- Agents ----------
+
+agent name *args:
+  #!/usr/bin/env bash
+  set -e
+  case "{{name}}" in
+    coding)     cd examples/coding-agent && uv run python agent.py {{args}} ;;
+    scraper)    cd examples/scraper-agent && uv run python agent.py {{args}} ;;
+    social)     cd examples/social-poster && uv run python agent.py {{args}} ;;
+    trend)      cd examples/trend-agent && uv run python agent.py {{args}} ;;
+    stock)      cd examples/stock-agent && uv run python agent.py {{args}} ;;
+    mentor)     cd examples/mentor-agent && uv run python agent.py {{args}} ;;
+    study)      cd examples/study-planner && uv run python agent.py {{args}} ;;
+    gatekeeper) cd examples/gatekeeper-agent && uv run python agent.py {{args}} ;;
+    *) echo "Unknown agent: {{name}}. Use: coding|scraper|social|trend|stock|mentor|study|gatekeeper"; exit 1 ;;
+  esac
+
+# ---------- Helpers ----------
+
+env:
+  cp -n .env.example .env || true
+  @echo "Edit .env with your OPENROUTER_API_KEY"
+
+openclaw-config:
+  mkdir -p ~/.openclaw
+  cp -n openclaw/openclaw.json.example ~/.openclaw/openclaw.json || true
+  @echo "OpenClaw config → ~/.openclaw/openclaw.json"
