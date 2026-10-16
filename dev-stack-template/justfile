@@ -1,63 +1,91 @@
 # Dev Stack justfile — run with: just <recipe>
-# Install just: https://github.com/casey/just
+# Every service listens on 127.0.0.1 only. Nothing here is reachable from your network.
 
 set dotenv-load := true
 
 default:
   @just --list
 
-# ---------- Core services ----------
+# ---------- Setup ----------
 
+# Install system packages and tools (WSL Ubuntu)
 setup:
   ./setup.sh
   @echo "Run: source ~/.bashrc"
 
+# Create or upgrade .env (generates secrets, replaces published defaults)
+env:
+  python3 scripts/devstack_env.py init
+  @echo "Next: put your OPENROUTER_API_KEY in .env (create it with a credit limit)."
+
+# Write Continue and OpenClaw configs that use your LiteLLM key
+client-configs: _check-env
+  python3 scripts/devstack_env.py render clients/continue.config.yaml.tmpl ~/.continue/config.yaml
+  python3 scripts/devstack_env.py render clients/openclaw.json.tmpl ~/.openclaw/openclaw.json
+
+# ---------- Core services ----------
+
+# Local model server inside WSL (see scripts/windows/llama-server.ps1 for the faster Windows-native option)
 llama:
   ./scripts/start_llama_server.sh
 
-litellm:
-  # Requires: pip install 'litellm[proxy]' or uv tool
-  litellm --config litellm_config.yaml --port 4000 --host 0.0.0.0
+# LiteLLM gateway on 127.0.0.1:4000
+litellm: _check-env
+  litellm --config litellm_config.yaml --host 127.0.0.1 --port 4000
 
-mysql:
+mysql: _check-env
   docker compose -f docker/docker-compose.mysql.yml up -d
 
 openclaw:
   openclaw gateway
 
-rag:
+rag: _check-env
   docker compose -f docker/docker-compose.rag.yml up -d
 
+# Show which ports are open and on which address (0.0.0.0 would mean exposed)
 status:
-  @echo "=== Ports ==="
-  @ss -tlnp 2>/dev/null | grep -E ':(8080|4000|3306|18789)' || netstat -tlnp 2>/dev/null | grep -E ':(8080|4000|3306|18789)' || true
+  @echo "=== Listening ports (8080 llama, 4000 litellm, 3306 mysql, 3001 rag, 18789 openclaw) ==="
+  @ss -tlnH 2>/dev/null | awk '{print $4}' | grep -E ':(8080|4000|3306|3001|18789)$' || echo "none of the stack's ports are open"
   @echo "=== Docker ==="
-  @docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+  @docker ps --format "table {{{{.Names}}\t{{{{.Status}}\t{{{{.Ports}}" 2>/dev/null || echo "docker not running"
+
+# Check the stack end to end: env, local model, gateway
+doctor: _check-env
+  #!/usr/bin/env bash
+  set -uo pipefail
+  ok() { echo "  ok   $*"; }; bad() { echo "  FAIL $*"; }
+  echo "=== doctor ==="
+  [ -n "${OPENROUTER_API_KEY:-}" ] && ok "OPENROUTER_API_KEY set" || echo "  --   OPENROUTER_API_KEY empty (local-only mode)"
+  local_url="${LOCAL_LLM_BASE_URL:-http://127.0.0.1:8080/v1}"; gw_url="${LITELLM_BASE_URL:-http://127.0.0.1:4000/v1}"
+  curl -sf -m 3 "${local_url%/v1}/health" >/dev/null && ok "llama-server at $local_url" || bad "llama-server not answering at $local_url"
+  curl -sf -m 3 -H "Authorization: Bearer $LITELLM_MASTER_KEY" "$gw_url/models" >/dev/null && ok "LiteLLM at $gw_url" || bad "LiteLLM not answering at $gw_url"
+  if ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):(8080|4000|3306|3001)$'; then bad "a stack port is open on all interfaces (see: just status)"; else ok "no stack port open on all interfaces"; fi
+
+# ---------- Tests ----------
+
+# Unit tests for the shared package and scripts
+test:
+  uv run --project shared --extra test python -m unittest discover -s tests -v
 
 # ---------- Agents ----------
 
 agent name *args:
   #!/usr/bin/env bash
-  set -e
+  set -euo pipefail
   case "{{name}}" in
-    coding)     cd examples/coding-agent && uv run python agent.py {{args}} ;;
-    scraper)    cd examples/scraper-agent && uv run python agent.py {{args}} ;;
-    social)     cd examples/social-poster && uv run python agent.py {{args}} ;;
-    trend)      cd examples/trend-agent && uv run python agent.py {{args}} ;;
-    stock)      cd examples/stock-agent && uv run python agent.py {{args}} ;;
-    mentor)     cd examples/mentor-agent && uv run python agent.py {{args}} ;;
-    study)      cd examples/study-planner && uv run python agent.py {{args}} ;;
-    gatekeeper) cd examples/gatekeeper-agent && uv run python agent.py {{args}} ;;
+    coding)     dir=coding-agent ;;
+    scraper)    dir=scraper-agent ;;
+    social)     dir=social-poster ;;
+    trend)      dir=trend-agent ;;
+    stock)      dir=stock-agent ;;
+    mentor)     dir=mentor-agent ;;
+    study)      dir=study-planner ;;
+    gatekeeper) dir=gatekeeper-agent ;;
     *) echo "Unknown agent: {{name}}. Use: coding|scraper|social|trend|stock|mentor|study|gatekeeper"; exit 1 ;;
   esac
+  cd "examples/$dir" && uv run python agent.py {{args}}
 
-# ---------- Helpers ----------
+# ---------- Internal ----------
 
-env:
-  cp -n .env.example .env || true
-  @echo "Edit .env with your OPENROUTER_API_KEY"
-
-openclaw-config:
-  mkdir -p ~/.openclaw
-  cp -n openclaw/openclaw.json.example ~/.openclaw/openclaw.json || true
-  @echo "OpenClaw config → ~/.openclaw/openclaw.json"
+_check-env:
+  @python3 scripts/devstack_env.py check

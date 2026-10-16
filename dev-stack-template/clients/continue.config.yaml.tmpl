@@ -1,0 +1,24 @@
+# Continue (VS Code) config. Rendered to ~/.continue/config.yaml by: just client-configs
+# All models go through your local LiteLLM gateway; the key is your LITELLM_MASTER_KEY.
+name: Dev Stack
+version: 1.0.0
+schema: v1
+models:
+  - name: Local (free)
+    provider: openai
+    model: local-coder
+    apiBase: http://127.0.0.1:4000/v1
+    apiKey: ${LITELLM_MASTER_KEY}
+    roles: [chat, edit, apply, autocomplete]
+  - name: Hybrid (local, then cheap cloud if local fails)
+    provider: openai
+    model: hybrid-agent
+    apiBase: http://127.0.0.1:4000/v1
+    apiKey: ${LITELLM_MASTER_KEY}
+    roles: [chat, edit, apply]
+  - name: DeepSeek V4 Flash (OpenRouter)
+    provider: openai
+    model: open-deepseek
+    apiBase: http://127.0.0.1:4000/v1
+    apiKey: ${LITELLM_MASTER_KEY}
+    roles: [chat, edit, apply]

@@ -15,7 +15,7 @@ This agent runs inside **OpenClaw**. OpenClaw already has first-class WhatsApp s
    mkdir -p ~/.openclaw/workspace/skills/whatsapp-support
    cp SKILL.md ~/.openclaw/workspace/skills/whatsapp-support/
    ```
-4. Make sure your `~/.openclaw/openclaw.json` points at LiteLLM (see `openclaw/openclaw.json.example`).
+4. Write `~/.openclaw/openclaw.json` pointing at LiteLLM with your key: `just client-configs` (template: `clients/openclaw.json.tmpl`).
 
 ## Behaviour
 

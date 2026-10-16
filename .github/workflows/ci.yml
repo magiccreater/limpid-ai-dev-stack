@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.24"
+
+      - name: ShellCheck
+        run: shellcheck -x install_dev_stack.sh dev-stack-template/setup.sh dev-stack-template/scripts/*.sh
+
+      - name: Installer tests
+        run: python3 -m unittest discover -s tests -v
+
+      # Same version as LITELLM_VERSION in dev-stack-template/setup.sh.
+      - name: Install pinned LiteLLM for the gateway integration test
+        run: |
+          uv tool install "litellm[proxy]==1.102.2"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Stack tests (shared package, configs, gateway)
+        working-directory: dev-stack-template
+        run: uv run --project shared --extra test python -m unittest discover -s tests -v

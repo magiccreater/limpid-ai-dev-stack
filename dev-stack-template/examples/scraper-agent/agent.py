@@ -14,11 +14,8 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from shared.llm import get_llm
+from devstack_shared.llm import get_llm
 
 
 async def scrape_and_extract(url: str, instruction: str) -> dict:

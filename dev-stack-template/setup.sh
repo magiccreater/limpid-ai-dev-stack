@@ -1,67 +1,88 @@
 #!/usr/bin/env bash
-set -e
+# Provision WSL Ubuntu for the dev stack. Safe to re-run.
+# Fails loudly: if a step breaks, the script stops and tells you which one.
+set -euo pipefail
 
-echo "=== 1. System packages ==="
-sudo apt update
-sudo apt install -y build-essential curl git unzip pkg-config libssl-dev \
+step() { echo; echo "=== $* ==="; }
+trap 'echo; echo "setup.sh FAILED at line $LINENO. Fix the error above and re-run (safe to repeat)." >&2' ERR
+
+# Pinned versions. Bump deliberately, one at a time.
+MISE_VERSION="v2026.10.1"
+NODE_VERSION="24"          # OpenClaw needs Node >= 24.16
+PYTHON_VERSION="3.12"
+UV_VERSION="0.12.24"
+JUST_VERSION="1.58.0"
+LITELLM_VERSION="1.102.2"  # pin exactly: litellm releases on PyPI were compromised in March 2026
+
+step "1. System packages"
+sudo apt-get update
+sudo apt-get install -y build-essential curl git unzip pkg-config libssl-dev libcurl4-openssl-dev \
   libxml2-dev libsqlite3-dev zlib1g-dev jq software-properties-common \
-  ca-certificates apt-transport-https ffmpeg libgl1 libglib2.0-0 \
-  poppler-utils tesseract-ocr libvulkan-dev vulkan-tools cmake \
-  python3-pip
+  ca-certificates ffmpeg libgl1 libglib2.0-0 poppler-utils tesseract-ocr \
+  libvulkan-dev vulkan-tools mesa-vulkan-drivers cmake python3-pip
 
-echo "=== 2. mise + uv ==="
-if [ ! -f "$HOME/.local/bin/mise" ]; then
-  curl https://mise.run | sh
-fi
-grep -q 'mise activate bash' ~/.bashrc || echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
-eval "$(~/.local/bin/mise activate bash)"
-
-if [ ! -f "$HOME/.local/bin/uv" ]; then
-  curl -LsSf https://astral.sh/uv/install.sh | sh
+step "2. mise (runtime manager)"
+if ! command -v mise >/dev/null && [ ! -x "$HOME/.local/bin/mise" ]; then
+  curl -fsSL https://mise.run | MISE_VERSION="$MISE_VERSION" sh
 fi
 export PATH="$HOME/.local/bin:$PATH"
+# shellcheck disable=SC2016  # written literally into .bashrc on purpose
+grep -q 'mise activate bash' ~/.bashrc || echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
+eval "$(mise activate bash)"
 
-echo "=== 3. Runtimes ==="
-mise use --global node@lts
-npm install -g pnpm typescript ts-node 2>/dev/null || true
-mise use --global python@3.11
+step "3. Runtimes and tools (node, python, uv, just)"
+mise use --global "node@${NODE_VERSION}" "python@${PYTHON_VERSION}" "uv@${UV_VERSION}" "just@${JUST_VERSION}"
+eval "$(mise activate bash)"
+mise exec -- npm install -g pnpm typescript
 
-# PHP (LAMP)
-sudo add-apt-repository -y ppa:ondrej/php 2>/dev/null || true
-sudo apt update
-sudo apt install -y php8.3-cli php8.3-common php8.3-mbstring php8.3-xml \
-  php8.3-curl php8.3-mysql php8.3-zip php8.3-intl php8.3-bcmath || true
+step "4. LiteLLM gateway (pinned)"
+mise exec -- uv tool install --force "litellm[proxy]==${LITELLM_VERSION}"
 
-if [ ! -f /usr/local/bin/composer ]; then
-  curl -sS https://getcomposer.org/installer | php
-  sudo mv composer.phar /usr/local/bin/composer
+step "5. PHP 8.3 + Composer"
+if ! command -v php8.3 >/dev/null; then
+  sudo add-apt-repository -y ppa:ondrej/php
+  sudo apt-get update
+  sudo apt-get install -y php8.3-cli php8.3-common php8.3-mbstring php8.3-xml \
+    php8.3-curl php8.3-mysql php8.3-zip php8.3-intl php8.3-bcmath
+fi
+if ! command -v composer >/dev/null; then
+  # Official installer with signature check: https://getcomposer.org/download/
+  tmp="$(mktemp -d)"
+  expected="$(curl -fsSL https://composer.github.io/installer.sig)"
+  curl -fsSL https://getcomposer.org/installer -o "$tmp/composer-setup.php"
+  actual="$(php -r "echo hash_file('sha384', '$tmp/composer-setup.php');")"
+  if [ "$expected" != "$actual" ]; then
+    echo "Composer installer signature mismatch; not installing." >&2
+    exit 1
+  fi
+  php "$tmp/composer-setup.php" --quiet --install-dir="$tmp"
+  sudo mv "$tmp/composer.phar" /usr/local/bin/composer
+  rm -rf "$tmp"
 fi
 
-echo "=== 4. Docker ==="
-if ! command -v docker &>/dev/null; then
+step "6. Docker"
+if command -v docker >/dev/null; then
+  echo "docker already available ($(docker --version))"
+else
   sudo install -m 0755 -d /etc/apt/keyrings
   sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   sudo chmod a+r /etc/apt/keyrings/docker.asc
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
+  # shellcheck disable=SC1091
+  codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${codename} stable" | \
     sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-  sudo apt update
-  sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  sudo apt-get update
+  sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   sudo usermod -aG docker "$USER"
+  echo "Added $USER to the docker group; open a new WSL shell for it to apply."
 fi
 
-echo "=== 5. just ==="
-if ! command -v just &>/dev/null; then
-  curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
-fi
-
-echo "=== 6. Python agent deps (shared) ==="
-uv pip install --system httpx python-dotenv langchain-openai yfinance playwright 2>/dev/null || \
-  pip install httpx python-dotenv langchain-openai yfinance playwright || true
-
+echo
 echo "=== System provisioning complete ==="
 echo "Next:"
 echo "  source ~/.bashrc"
-echo "  just env"
-echo "  ./scripts/build_llama.sh"
-echo "  ./scripts/setup_openclaw.sh"
-echo "  just llama &  just litellm &  just mysql"
+echo "  just env                    # creates .env with generated secrets"
+echo "  # Local model: on Windows run scripts\\windows\\llama-server.ps1 (recommended)"
+echo "  #              or in WSL: ./scripts/install_llama.sh && just llama"
+echo "  just litellm                # gateway on 127.0.0.1:4000"
+echo "  just doctor"
