@@ -1,9 +1,20 @@
-# Copy to C:\Users\<YourUsername>\.wslconfig then run: wsl --shutdown
+# Copy to C:\Users\<YourUsername>\.wslconfig, then run in PowerShell: wsl --shutdown
+# Needs Windows 11 22H2 or later (for mirrored networking).
 [wsl2]
-memory=24GB
+# Recommended: llama-server runs natively on Windows (scripts\windows\llama-server.ps1)
+# and needs most of your RAM for the model, so WSL only gets what LiteLLM, Docker and
+# the agents need. If you run llama-server inside WSL instead, raise this to 20GB and
+# use LLAMA_PRESET=small in .env.
+memory=10GB
 swap=8GB
 processors=8
-localhostForwarding=true
+
+# Mirrored networking: 127.0.0.1 is shared between Windows and WSL, so LiteLLM in WSL
+# reaches the Windows llama-server at 127.0.0.1:8080, and Windows apps (VS Code,
+# browser) reach LiteLLM at 127.0.0.1:4000. Services bound to 0.0.0.0 in WSL become
+# reachable from your network in this mode, which is why every service here binds
+# 127.0.0.1.
+networkingMode=mirrored
 
 [experimental]
 autoMemoryReclaim=gradual

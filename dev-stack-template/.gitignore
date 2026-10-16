@@ -19,3 +19,7 @@ rag_storage/
 !.vscode/extensions.json
 !.vscode/settings.json
 lora_output/
+.dev-stack-backup/
+*.dev-stack-new
+.env.tmp
+uv.lock

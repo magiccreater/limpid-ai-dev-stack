@@ -29,9 +29,7 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from shared.llm import get_llm
+from devstack_shared.llm import get_llm
 
 # ---------------------------------------------------------------------------
 # Heuristic scanners (fast, local, no network)
@@ -40,7 +38,11 @@ from shared.llm import get_llm
 XSS_PATTERNS = [
     (r"innerHTML\s*=", "Assigning to innerHTML can enable XSS if data is untrusted"),
     (r"document\.write\s*\(", "document.write with untrusted input is an XSS risk"),
-    (r"\{\{\s*.*\s*\}\}", "Raw template interpolation — ensure auto-escaping is on"),
+    # Only the raw (unescaped) output forms; plain {{ }} is auto-escaped in Blade, Twig, Jinja, Vue.
+    (r"\{!!.*?!!\}", "Blade {!! !!} prints raw HTML — escape or sanitize untrusted data"),
+    (r"\{\{\{.*?\}\}\}", "Triple-brace {{{ }}} prints raw HTML in Handlebars/Mustache"),
+    (r"\{\{[^}\n]*\|\s*(safe|raw)\b[^}\n]*\}\}", "Jinja/Twig |safe or |raw disables escaping"),
+    (r"\{%\s*autoescape\s+(false|off)\s*%\}", "Template auto-escaping turned off"),
     (r"v-html\s*=", "Vue v-html renders raw HTML — sanitize untrusted content"),
     (r"dangerouslySetInnerHTML", "React dangerouslySetInnerHTML requires sanitization"),
     (r"echo\s+\$_(GET|POST|REQUEST|COOKIE)", "PHP echo of superglobals without escaping"),

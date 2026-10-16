@@ -1,19 +1,22 @@
-# Simple local RAG stack (AnythingLLM or swap for Open WebUI)
-# For production you may prefer a dedicated vector DB + your own indexer.
+# Local RAG (AnythingLLM). Bound to 127.0.0.1 only. Image pinned; bump deliberately.
 
 services:
   anythingllm:
-    image: mintplexlabs/anythingllm:latest
+    image: mintplexlabs/anythingllm:1.18.0
     container_name: local-rag
     restart: unless-stopped
     ports:
       - "127.0.0.1:3001:3001"
     environment:
       - STORAGE_DIR=/app/server/storage
-      - JWT_SECRET=change-me-in-production
-      # Point AnythingLLM at LiteLLM:
-      # - OPEN_AI_BASE_PATH=http://host.docker.internal:4000/v1
-      # - OPEN_MODEL_PREF=hybrid-agent
+      - JWT_SECRET=${ANYTHINGLLM_JWT_SECRET:?run "just env" first}
+      # To use LiteLLM, pick "Generic OpenAI" in AnythingLLM's settings with
+      #   base URL  http://host.docker.internal:4000/v1
+      #   model     hybrid-agent (or local-coder for fully local)
+      #   API key   your LITELLM_MASTER_KEY from .env
+      # LiteLLM listens on 127.0.0.1 only. Whether a container can reach that depends on
+      # your Docker setup (Docker Desktop vs Docker Engine in WSL). Test the connection
+      # in AnythingLLM's settings; do not rebind LiteLLM to 0.0.0.0 to make it work.
     volumes:
       - rag_storage:/app/server/storage
     extra_hosts:

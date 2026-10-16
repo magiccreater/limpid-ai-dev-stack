@@ -9,12 +9,9 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from shared.llm import get_llm
-from shared.jev_client import jev_decide
+from devstack_shared.llm import get_llm
+from devstack_shared.jev_client import try_decide
 
 
 async def build_plan(
@@ -23,8 +20,8 @@ async def build_plan(
     level: str = "high-school",
     weeks: int = 4,
 ) -> dict:
-    # Optional: let Jev confirm subject difficulty
-    difficulty = await jev_decide(
+    # Optional: let Jev rate subject difficulty (None when Jev is off or unavailable)
+    difficulty = await try_decide(
         state=f"Subject: {subject}, level: {level}",
         questions={
             "difficulty": {
@@ -46,7 +43,7 @@ Subject: {subject}
 Level: {level}
 Available hours per week: {hours_per_week}
 Plan length: {weeks} weeks
-Difficulty signal: {difficulty.get('answers', {})}
+Difficulty signal: {difficulty or 'not available'}
 
 Create a practical study plan as JSON with:
 {{

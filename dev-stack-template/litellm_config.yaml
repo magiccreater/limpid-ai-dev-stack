@@ -1,55 +1,101 @@
+# LiteLLM gateway: one OpenAI-compatible endpoint (http://127.0.0.1:4000/v1) for
+# Cline, Continue, Aider, OpenClaw and the example agents.
+# Start with: just litellm   (binds 127.0.0.1 and refuses to start without a real key)
+#
+# Model names clients use:
+#   local-coder     your llama-server only (free)
+#   hybrid-agent    local first; if the call FAILS (down, overloaded, context too long)
+#                   it falls back to cheap open models. Never falls back to Claude.
+#   open-deepseek   DeepSeek V4 Flash       (OpenRouter, very cheap)
+#   open-qwen       Qwen3 Coder Next        (OpenRouter, cheap)
+#   open-glm        GLM 5.1                 (OpenRouter, stronger, about 10x the price)
+#   cloud-reasoner  Claude Sonnet 5.5       (OpenRouter, expensive; capped below, and
+#                   shared/devstack_shared/llm.py refuses it unless ALLOW_FRONTIER=1)
+#
+# Fallbacks react to errors, not to bad answers. If the local model answers badly,
+# LiteLLM will not notice; pick a stronger model name for that task instead.
+# Model IDs and the prices in model_info were checked on openrouter.ai in October 2026
+# (prices rounded up to the providers' list rates). Update both as models change.
+
 model_list:
-  # ---------- Local (Intel Arc / llama.cpp) ----------
+  # ---------- Local (llama-server: Windows native or WSL) ----------
   - model_name: local-coder
     litellm_params:
-      model: openai/qwen2.5-coder-7b
-      api_base: http://localhost:8080/v1
-      api_key: none
-      timeout: 300
+      model: openai/local          # llama-server serves one model and ignores this name
+      api_base: os.environ/LOCAL_LLM_BASE_URL
+      api_key: "no-key"
+      timeout: 600
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
 
-  # ---------- Strong open models via OpenRouter ----------
+  - model_name: hybrid-agent
+    litellm_params:
+      model: openai/local
+      api_base: os.environ/LOCAL_LLM_BASE_URL
+      api_key: "no-key"
+      timeout: 600
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+
+  # ---------- Open models via OpenRouter ----------
   - model_name: open-deepseek
     litellm_params:
-      model: openrouter/deepseek/deepseek-chat  # swap to deepseek-v4-flash when available
+      model: openrouter/deepseek/deepseek-v4-flash
       api_key: os.environ/OPENROUTER_API_KEY
-      timeout: 120
-
-  - model_name: open-glm
-    litellm_params:
-      model: openrouter/z-ai/glm-4.5  # update to current best GLM coding model
-      api_key: os.environ/OPENROUTER_API_KEY
-      timeout: 120
+      timeout: 180
+    model_info:                    # USD per token, for budgets (LiteLLM may not know new models)
+      input_cost_per_token: 0.00000014
+      output_cost_per_token: 0.00000128
 
   - model_name: open-qwen
     litellm_params:
-      model: openrouter/qwen/qwen3-coder
+      model: openrouter/qwen/qwen3-coder-next
       api_key: os.environ/OPENROUTER_API_KEY
-      timeout: 120
+      timeout: 180
+    model_info:                    # USD per token, for budgets (LiteLLM may not know new models)
+      input_cost_per_token: 0.00000012
+      output_cost_per_token: 0.0000008
 
-  # ---------- Frontier fallbacks ----------
+  - model_name: open-glm
+    litellm_params:
+      model: openrouter/z-ai/glm-5.1
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+    model_info:                    # USD per token, for budgets (LiteLLM may not know new models)
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+
+  # ---------- Frontier (explicit use only) ----------
   - model_name: cloud-reasoner
     litellm_params:
-      model: openrouter/anthropic/claude-3.5-sonnet
+      model: openrouter/anthropic/claude-sonnet-5.5
       api_key: os.environ/OPENROUTER_API_KEY
-      timeout: 180
+      timeout: 300
+      max_budget: 1.0              # USD per budget_duration for this model
+      budget_duration: 1d
+    model_info:                    # USD per token, for budgets (LiteLLM may not know new models)
+      input_cost_per_token: 0.000002
+      output_cost_per_token: 0.00001
 
-  - model_name: cloud-deepseek-r1
-    litellm_params:
-      model: openrouter/deepseek/deepseek-r1
-      api_key: os.environ/OPENROUTER_API_KEY
-      timeout: 180
+router_settings:
+  # Fallbacks belong here (not inside a model entry, where LiteLLM ignores them).
+  fallbacks:
+    - hybrid-agent: ["open-deepseek", "open-qwen"]
+  num_retries: 1
+  # Daily cap across every OpenRouter model. Tracked in memory, so it resets when
+  # LiteLLM restarts: the credit limit on the OpenRouter key is the real hard stop.
+  provider_budget_config:
+    openrouter:
+      budget_limit: 3.0            # USD
+      time_period: 1d
 
-  # ---------- Hybrid: local first → open → frontier ----------
-  - model_name: hybrid-agent
-    litellm_params:
-      model: openai/qwen2.5-coder-7b
-      api_base: http://localhost:8080/v1
-      api_key: none
-    fallbacks: ["open-deepseek", "open-glm", "cloud-reasoner"]
+litellm_settings:
+  drop_params: true                # drop OpenAI params a provider does not support
 
 general_settings:
-  master_key: sk-dev-proxy-key
-  # drop_params: true
+  master_key: os.environ/LITELLM_MASTER_KEY
 
-# NOTE: TypeSafe Jev (~typesafe/jev-latest) is NOT a chat model.
-# Use shared/jev_client.py (Decisions API) for routing / classification.
+# TypeSafe Jev (~typesafe/jev-latest) is not a chat model and is not routed here.
+# Use shared/devstack_shared/jev_client.py (OpenRouter Decisions API) for routing.
