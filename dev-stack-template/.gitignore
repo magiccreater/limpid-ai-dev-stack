@@ -10,7 +10,6 @@ npm-debug.log*
 .turbo/
 models/
 *.gguf
-llama.cpp/
 mysql_data/
 rag_storage/
 .DS_Store

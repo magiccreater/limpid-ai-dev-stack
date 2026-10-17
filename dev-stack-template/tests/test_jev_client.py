@@ -47,8 +47,9 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(str(calls[0].url), jev_client.DECISIONS_URL)
         self.assertEqual(calls[0].headers["authorization"], "Bearer sk-or-test")
 
-    def test_disabled_or_no_key_falls_back_without_network(self):
-        for env in ({"OPENROUTER_API_KEY": "k", "JEV_ENABLED": "0"}, {}):
+    def test_off_by_default_disabled_or_no_key_falls_back_without_network(self):
+        for env in ({"OPENROUTER_API_KEY": "k"}, {"OPENROUTER_API_KEY": "k", "JEV_ENABLED": "0"},
+                    {"JEV_ENABLED": "1"}, {}):
             calls = []
             with mock.patch.dict("os.environ", env, clear=True):
                 d = run(jev_client.route_request("x", client=client_returning(body=GOOD, calls=calls)))

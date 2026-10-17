@@ -18,8 +18,7 @@ step "1. System packages"
 sudo apt-get update
 sudo apt-get install -y build-essential curl git unzip pkg-config libssl-dev libcurl4-openssl-dev \
   libxml2-dev libsqlite3-dev zlib1g-dev jq software-properties-common \
-  ca-certificates ffmpeg libgl1 libglib2.0-0 poppler-utils tesseract-ocr \
-  libvulkan-dev vulkan-tools mesa-vulkan-drivers cmake python3-pip
+  ca-certificates ffmpeg libgl1 libglib2.0-0 poppler-utils tesseract-ocr python3-pip
 
 step "2. mise (runtime manager)"
 if ! command -v mise >/dev/null && [ ! -x "$HOME/.local/bin/mise" ]; then
@@ -82,7 +81,7 @@ echo "=== System provisioning complete ==="
 echo "Next:"
 echo "  source ~/.bashrc"
 echo "  just env                    # creates .env with generated secrets"
-echo "  # Local model: on Windows run scripts\\windows\\llama-server.ps1 (recommended)"
-echo "  #              or in WSL: ./scripts/install_llama.sh && just llama"
+echo "  # Private models: set up Amazon Bedrock once (aws/README.md), add the keys to .env"
 echo "  just litellm                # gateway on 127.0.0.1:4000"
 echo "  just doctor"
+echo "  just check-models"

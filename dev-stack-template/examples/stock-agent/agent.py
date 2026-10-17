@@ -34,7 +34,7 @@ def fetch_basic(ticker: str) -> dict:
 
 async def analyze(ticker: str) -> str:
     data = fetch_basic(ticker)
-    llm = get_llm(tier="hybrid")
+    llm = get_llm(tier="private")
     prompt = f"""You are a careful equity research assistant.
 This is educational only — never give buy/sell advice framed as guaranteed.
 

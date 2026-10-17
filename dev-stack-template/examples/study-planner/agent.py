@@ -37,7 +37,7 @@ async def build_plan(
         },
     )
 
-    llm = get_llm(tier="hybrid")
+    llm = get_llm(tier="private")
     prompt = f"""You are an expert study coach for students.
 Subject: {subject}
 Level: {level}

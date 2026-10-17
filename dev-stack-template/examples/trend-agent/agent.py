@@ -14,7 +14,7 @@ from devstack_shared.llm import get_llm
 
 
 async def trend_digest(topic: str, audience: str = "developers") -> str:
-    llm = get_llm(tier="open")  # prefer strong open model for research-style output
+    llm = get_llm(tier="open")  # public trends only: OpenRouter (zero data retention). Use "private" for anything sensitive.
     prompt = f"""You are a research analyst.
 Topic: {topic}
 Audience: {audience}

@@ -5,8 +5,9 @@ Jev does not generate text. It answers typed questions about a state and returns
 calibrated probabilities (noul / choice / score). Use it for cheap routing and
 classification before calling a chat model.
 
-Privacy: every call sends the state to OpenRouter. Set JEV_ENABLED=0 in .env when
-agents handle client or private data; route_request() then uses local defaults.
+Privacy: every call sends the state to OpenRouter, so Jev is OFF unless JEV_ENABLED=1.
+Only turn it on for agents that never see client or private data; when off,
+route_request() uses local defaults.
 
 Failure: route_request() and try_decide() never raise. When Jev is disabled, has no
 key, or fails, they return a fallback so the agent keeps working.
@@ -35,7 +36,7 @@ class JevUnavailable(RuntimeError):
 
 def jev_enabled(env: Mapping[str, str] | None = None) -> bool:
     env = os.environ if env is None else env
-    return env.get("JEV_ENABLED", "1").strip() != "0" and bool(env.get("OPENROUTER_API_KEY"))
+    return env.get("JEV_ENABLED", "0").strip() == "1" and bool(env.get("OPENROUTER_API_KEY"))
 
 
 def as_state(state: str | dict | list) -> dict | list:
@@ -54,7 +55,7 @@ async def jev_decide(
     """Call the Decisions API. Raises JevUnavailable or httpx errors on failure."""
     load_env()
     if not jev_enabled():
-        raise JevUnavailable("Jev is disabled (JEV_ENABLED=0) or OPENROUTER_API_KEY is not set")
+        raise JevUnavailable("Jev is off (set JEV_ENABLED=1) or OPENROUTER_API_KEY is not set")
 
     payload = {
         "model": model or os.getenv("JEV_MODEL", DEFAULT_MODEL),

@@ -1,4 +1,4 @@
-"""Chat models through the local LiteLLM gateway (see litellm_config.yaml)."""
+"""Chat models through the LiteLLM gateway (see litellm_config.yaml)."""
 
 from __future__ import annotations
 
@@ -12,15 +12,21 @@ from .config import load_env
 if TYPE_CHECKING:
     from langchain_openai import ChatOpenAI
 
-Tier = Literal["local", "open", "hybrid", "frontier"]
+Tier = Literal["private", "private-general", "private-reasoner", "open", "frontier", "local", "hybrid"]
 
-# Tier -> LiteLLM model name.
+# Tier -> LiteLLM model name. Private tiers run on Amazon Bedrock in Sydney and never
+# fall back to OpenRouter; "open" and "frontier" go to OpenRouter (non-sensitive only).
 TIERS: dict[str, str] = {
-    "local": "local-coder",      # llama-server only, free
-    "hybrid": "hybrid-agent",    # local, then cheap open models if the local call fails
-    "open": "open-deepseek",     # cheap open model on OpenRouter
-    "frontier": "cloud-reasoner",  # Claude via OpenRouter: paid, needs ALLOW_FRONTIER=1
+    "private": "private-coder",              # default: coding and agent work
+    "private-general": "private-general",    # writing, summaries, general questions
+    "private-reasoner": "private-reasoner",  # harder reasoning
+    "open": "open-deepseek",                 # cheap, OpenRouter, zero data retention
+    "frontier": "cloud-reasoner",            # Claude via OpenRouter: needs ALLOW_FRONTIER=1
 }
+# Names from earlier versions (the local llama-server is gone; both now mean private).
+DEPRECATED_TIERS: dict[str, str] = {"local": "private", "hybrid": "private"}
+
+PRIVATE_TIERS = frozenset(t for t in TIERS if t.startswith("private"))
 
 PUBLISHED_KEYS = {"sk-dev-proxy-key"}
 
@@ -42,6 +48,7 @@ def frontier_allowed(env: Mapping[str, str] | None = None) -> bool:
 
 def resolve_model(tier: str, env: Mapping[str, str] | None = None) -> str:
     """LiteLLM model name for a tier. Refuses the frontier tier unless allowed."""
+    tier = DEPRECATED_TIERS.get(tier, tier)
     if tier not in TIERS:
         raise ValueError(f"unknown tier {tier!r}; use one of {', '.join(TIERS)}")
     if tier == "frontier" and not frontier_allowed(env):
@@ -53,14 +60,14 @@ def resolve_model(tier: str, env: Mapping[str, str] | None = None) -> str:
 
 
 def tier_for_complexity(complexity: float, env: Mapping[str, str] | None = None) -> str:
-    """Map a 0-3 complexity score to a tier. Never picks frontier unless it is allowed."""
+    """Map a 0-3 complexity score to a tier. Stays private unless frontier is allowed."""
     if not isinstance(complexity, (int, float)) or not math.isfinite(complexity):
         complexity = 1.0
-    if complexity < 1.5:
-        return "local"
-    if complexity < 2.5:
-        return "hybrid"
-    return "frontier" if frontier_allowed(env) else "open"
+    if complexity < 2.0:
+        return "private"
+    if complexity >= 2.5 and frontier_allowed(env):
+        return "frontier"
+    return "private-reasoner"
 
 
 def gateway_settings(env: Mapping[str, str] | None = None) -> tuple[str, str]:
@@ -75,7 +82,7 @@ def gateway_settings(env: Mapping[str, str] | None = None) -> tuple[str, str]:
     return base, key
 
 
-def get_llm(tier: Tier = "hybrid", temperature: float = 0.2) -> ChatOpenAI:
+def get_llm(tier: Tier = "private", temperature: float = 0.2) -> ChatOpenAI:
     """A LangChain chat model for the given tier, routed through LiteLLM."""
     from langchain_openai import ChatOpenAI
 
@@ -88,5 +95,5 @@ def get_llm(tier: Tier = "hybrid", temperature: float = 0.2) -> ChatOpenAI:
         api_key=key,
         temperature=temperature,
         max_retries=1,      # LiteLLM already retries and falls back
-        timeout=600,        # local models can be slow on long prompts
+        timeout=600,        # long agent prompts can take a while
     )

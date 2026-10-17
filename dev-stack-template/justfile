@@ -25,10 +25,6 @@ client-configs: _check-env
 
 # ---------- Core services ----------
 
-# Local model server inside WSL (see scripts/windows/llama-server.ps1 for the faster Windows-native option)
-llama:
-  ./scripts/start_llama_server.sh
-
 # LiteLLM gateway on 127.0.0.1:4000
 litellm: _check-env
   litellm --config litellm_config.yaml --host 127.0.0.1 --port 4000
@@ -44,22 +40,27 @@ rag: _check-env
 
 # Show which ports are open and on which address (0.0.0.0 would mean exposed)
 status:
-  @echo "=== Listening ports (8080 llama, 4000 litellm, 3306 mysql, 3001 rag, 18789 openclaw) ==="
-  @ss -tlnH 2>/dev/null | awk '{print $4}' | grep -E ':(8080|4000|3306|3001|18789)$' || echo "none of the stack's ports are open"
+  @echo "=== Listening ports (4000 litellm, 3306 mysql, 3001 rag, 18789 openclaw) ==="
+  @ss -tlnH 2>/dev/null | awk '{print $4}' | grep -E ':(4000|3306|3001|18789)$' || echo "none of the stack's ports are open"
   @echo "=== Docker ==="
   @docker ps --format "table {{{{.Names}}\t{{{{.Status}}\t{{{{.Ports}}" 2>/dev/null || echo "docker not running"
 
-# Check the stack end to end: env, local model, gateway
+# Call models through the gateway and check answers + tool calls (default: the private ones)
+check-models *models:
+  python3 scripts/check_models.py {{models}}
+
+# Check the stack end to end: env, AWS keys, gateway, exposure
 doctor: _check-env
   #!/usr/bin/env bash
   set -uo pipefail
   ok() { echo "  ok   $*"; }; bad() { echo "  FAIL $*"; }
   echo "=== doctor ==="
-  [ -n "${OPENROUTER_API_KEY:-}" ] && ok "OPENROUTER_API_KEY set" || echo "  --   OPENROUTER_API_KEY empty (local-only mode)"
-  local_url="${LOCAL_LLM_BASE_URL:-http://127.0.0.1:8080/v1}"; gw_url="${LITELLM_BASE_URL:-http://127.0.0.1:4000/v1}"
-  curl -sf -m 3 "${local_url%/v1}/health" >/dev/null && ok "llama-server at $local_url" || bad "llama-server not answering at $local_url"
+  [ -n "${OPENROUTER_API_KEY:-}" ] && ok "OPENROUTER_API_KEY set (open models)" || echo "  --   OPENROUTER_API_KEY empty (private models only)"
+  [ "${JEV_ENABLED:-0}" = "1" ] && echo "  note JEV_ENABLED=1: agent requests are sent to OpenRouter for routing" || true
+  gw_url="${LITELLM_BASE_URL:-http://127.0.0.1:4000/v1}"
+  if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then ok "AWS keys set (private models: Bedrock Sydney)"; else bad "AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY empty: private models will fail (see aws/README.md)"; fi
   curl -sf -m 3 -H "Authorization: Bearer $LITELLM_MASTER_KEY" "$gw_url/models" >/dev/null && ok "LiteLLM at $gw_url" || bad "LiteLLM not answering at $gw_url"
-  if ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):(8080|4000|3306|3001)$'; then bad "a stack port is open on all interfaces (see: just status)"; else ok "no stack port open on all interfaces"; fi
+  if ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):(4000|3306|3001)$'; then bad "a stack port is open on all interfaces (see: just status)"; else ok "no stack port open on all interfaces"; fi
 
 # ---------- Tests ----------
 

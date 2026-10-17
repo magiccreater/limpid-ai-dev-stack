@@ -17,7 +17,7 @@ PLATFORMS = ["twitter", "linkedin", "instagram"]
 
 
 async def draft_posts(topic: str) -> dict[str, str]:
-    llm = get_llm(tier="hybrid")
+    llm = get_llm(tier="private")
     prompt = f"""You are a social media strategist.
 Topic: {topic}
 

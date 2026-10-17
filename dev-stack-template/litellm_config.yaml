@@ -2,50 +2,84 @@
 # Cline, Continue, Aider, OpenClaw and the example agents.
 # Start with: just litellm   (binds 127.0.0.1 and refuses to start without a real key)
 #
-# Model names clients use:
-#   local-coder     your llama-server only (free)
-#   hybrid-agent    local first; if the call FAILS (down, overloaded, context too long)
-#                   it falls back to cheap open models. Never falls back to Claude.
-#   open-deepseek   DeepSeek V4 Flash       (OpenRouter, very cheap)
-#   open-qwen       Qwen3 Coder Next        (OpenRouter, cheap)
-#   open-glm        GLM 5.1                 (OpenRouter, stronger, about 10x the price)
-#   cloud-reasoner  Claude Sonnet 5.5       (OpenRouter, expensive; capped below, and
-#                   shared/devstack_shared/llm.py refuses it unless ALLOW_FRONTIER=1)
+# Two kinds of model, kept apart on purpose:
 #
-# Fallbacks react to errors, not to bad answers. If the local model answers badly,
-# LiteLLM will not notice; pick a stronger model name for that task instead.
-# Model IDs and the prices in model_info were checked on openrouter.ai in October 2026
-# (prices rounded up to the providers' list rates). Update both as models change.
+#   PRIVATE: Amazon Bedrock in Sydney (ap-southeast-2). AWS says Bedrock does not store
+#   or log prompts, does not use them for training, and does not share them with the
+#   model makers. Use these for client code, finances and personal documents.
+#     private-coder       Qwen3 Coder Next          coding and agents (default)
+#     private-coder-lite  Qwen3 Coder 30B A3B       cheaper; fallback for private-coder
+#     private-general     Qwen3 235B A22B 2507      writing, summaries, general questions
+#     private-reasoner    DeepSeek V3.2             harder reasoning
+#   A private model only ever falls back to another private model, never to OpenRouter.
+#   Old names local-coder and hybrid-agent are aliases of private-coder.
+#
+#   OPEN: OpenRouter, for non-sensitive work only (public data, research, drafts).
+#   Every request asks for zero-data-retention providers; also turn ZDR on for your
+#   whole account at https://openrouter.ai/settings/privacy.
+#     open-deepseek   DeepSeek V4 Flash   very cheap
+#     open-qwen       Qwen3 Coder Next    cheap
+#     open-glm        GLM 5.1             stronger, about 10x the price
+#     cloud-reasoner  Claude Sonnet 5.5   expensive; capped below, and
+#                     shared/devstack_shared/llm.py refuses it unless ALLOW_FRONTIER=1
+#
+# Fallbacks react to errors, not to bad answers: pick a stronger model name when needed.
+# Model IDs and prices were checked in October 2026 (AWS model cards and pricing page,
+# openrouter.ai), rounded up. Update both as models change. Qwen3 Coder 30B is marked
+# Legacy by AWS, end of life 2027-03-30.
 
 model_list:
-  # ---------- Local (llama-server: Windows native or WSL) ----------
-  - model_name: local-coder
+  # ---------- Private: Amazon Bedrock, Sydney ----------
+  # Region is pinned here on purpose so data cannot drift to another region by an env var.
+  # Credentials come from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (see aws/README.md).
+  - model_name: private-coder
     litellm_params:
-      model: openai/local          # llama-server serves one model and ignores this name
-      api_base: os.environ/LOCAL_LLM_BASE_URL
-      api_key: "no-key"
+      model: bedrock/converse/qwen.qwen3-coder-next
+      aws_region_name: ap-southeast-2
+      timeout: 300
+    model_info:
+      input_cost_per_token: 0.0000006     # US list price is $0.50/M; rounded up for Sydney
+      output_cost_per_token: 0.0000015
+      supports_function_calling: true     # so LiteLLM passes tools through to Converse
+
+  - model_name: private-coder-lite
+    litellm_params:
+      model: bedrock/converse/qwen.qwen3-coder-30b-a3b-v1:0
+      aws_region_name: ap-southeast-2
+      timeout: 300
+    model_info:
+      input_cost_per_token: 0.00000016    # Sydney $0.1545/M
+      output_cost_per_token: 0.00000062   # Sydney $0.618/M
+      supports_function_calling: true
+
+  - model_name: private-general
+    litellm_params:
+      model: bedrock/converse/qwen.qwen3-235b-a22b-2507-v1:0
+      aws_region_name: ap-southeast-2
+      timeout: 300
+    model_info:
+      input_cost_per_token: 0.00000023    # Sydney $0.2266/M
+      output_cost_per_token: 0.00000091   # Sydney $0.9064/M
+      supports_function_calling: true
+
+  - model_name: private-reasoner
+    litellm_params:
+      model: bedrock/converse/deepseek.v3.2
+      aws_region_name: ap-southeast-2
       timeout: 600
     model_info:
-      input_cost_per_token: 0
-      output_cost_per_token: 0
+      input_cost_per_token: 0.00000064    # Sydney $0.6386/M
+      output_cost_per_token: 0.00000191   # Sydney $1.9055/M
+      supports_function_calling: true
 
-  - model_name: hybrid-agent
-    litellm_params:
-      model: openai/local
-      api_base: os.environ/LOCAL_LLM_BASE_URL
-      api_key: "no-key"
-      timeout: 600
-    model_info:
-      input_cost_per_token: 0
-      output_cost_per_token: 0
-
-  # ---------- Open models via OpenRouter ----------
+  # ---------- Open: OpenRouter (non-sensitive only) ----------
   - model_name: open-deepseek
     litellm_params:
       model: openrouter/deepseek/deepseek-v4-flash
       api_key: os.environ/OPENROUTER_API_KEY
       timeout: 180
-    model_info:                    # USD per token, for budgets (LiteLLM may not know new models)
+      extra_body: {provider: {zdr: true}}   # only zero-data-retention providers
+    model_info:
       input_cost_per_token: 0.00000014
       output_cost_per_token: 0.00000128
 
@@ -54,7 +88,8 @@ model_list:
       model: openrouter/qwen/qwen3-coder-next
       api_key: os.environ/OPENROUTER_API_KEY
       timeout: 180
-    model_info:                    # USD per token, for budgets (LiteLLM may not know new models)
+      extra_body: {provider: {zdr: true}}
+    model_info:
       input_cost_per_token: 0.00000012
       output_cost_per_token: 0.0000008
 
@@ -63,7 +98,8 @@ model_list:
       model: openrouter/z-ai/glm-5.1
       api_key: os.environ/OPENROUTER_API_KEY
       timeout: 300
-    model_info:                    # USD per token, for budgets (LiteLLM may not know new models)
+      extra_body: {provider: {zdr: true}}
+    model_info:
       input_cost_per_token: 0.0000014
       output_cost_per_token: 0.0000044
 
@@ -73,20 +109,33 @@ model_list:
       model: openrouter/anthropic/claude-sonnet-5.5
       api_key: os.environ/OPENROUTER_API_KEY
       timeout: 300
+      extra_body: {provider: {zdr: true}}
       max_budget: 1.0              # USD per budget_duration for this model
       budget_duration: 1d
-    model_info:                    # USD per token, for budgets (LiteLLM may not know new models)
+    model_info:
       input_cost_per_token: 0.000002
       output_cost_per_token: 0.00001
 
 router_settings:
+  # Names from earlier versions of this stack (clients may still use them).
+  model_group_alias:
+    local-coder: private-coder
+    hybrid-agent: private-coder
   # Fallbacks belong here (not inside a model entry, where LiteLLM ignores them).
+  # Private models fall back only to private models.
   fallbacks:
-    - hybrid-agent: ["open-deepseek", "open-qwen"]
+    - private-coder: ["private-coder-lite"]
+    - private-general: ["private-coder"]
+    - private-reasoner: ["private-general"]
+    - local-coder: ["private-coder-lite"]     # aliases need their own fallback entry
+    - hybrid-agent: ["private-coder-lite"]
   num_retries: 1
-  # Daily cap across every OpenRouter model. Tracked in memory, so it resets when
-  # LiteLLM restarts: the credit limit on the OpenRouter key is the real hard stop.
+  # Daily caps per provider. Tracked in memory, so they reset when LiteLLM restarts:
+  # the AWS Budget alarm and the OpenRouter key's credit limit are the real backstops.
   provider_budget_config:
+    bedrock:
+      budget_limit: 3.0            # USD
+      time_period: 1d
     openrouter:
       budget_limit: 3.0            # USD
       time_period: 1d

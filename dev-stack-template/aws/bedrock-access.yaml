@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Dev stack: an IAM user that can only call four Amazon Bedrock models in Sydney
+  (ap-southeast-2), plus a monthly AWS budget that emails you. Deploy this stack in
+  ap-southeast-2. Create the user's access key afterwards in the IAM console.
+
+Parameters:
+  BudgetEmail:
+    Type: String
+    Description: Email address for budget alerts.
+    AllowedPattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+    ConstraintDescription: Must be an email address.
+  MonthlyBudgetUSD:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    Description: Monthly spend (whole AWS account, USD) that triggers alerts at 50%, 100% and forecast 100%.
+  UserName:
+    Type: String
+    Default: devstack-bedrock
+    AllowedPattern: "^[A-Za-z0-9+=,.@_-]{1,64}$"
+    Description: Name of the IAM user the dev stack signs in as.
+
+Rules:
+  SydneyOnly:
+    Assertions:
+      - Assert: !Equals [!Ref "AWS::Region", ap-southeast-2]
+        AssertDescription: Deploy this stack in ap-southeast-2 (Sydney) so data stays in Australia.
+
+Resources:
+  BedrockUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Ref UserName
+      Tags:
+        - Key: purpose
+          Value: limpid-ai-dev-stack
+
+  BedrockInvokePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: bedrock-invoke-sydney-models
+      Users:
+        - !Ref BedrockUser
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Converse and ConverseStream are authorised by these two actions.
+          - Sid: InvokeChosenModelsInSydney
+            Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+            Resource:
+              - arn:aws:bedrock:ap-southeast-2::foundation-model/qwen.qwen3-coder-next
+              - arn:aws:bedrock:ap-southeast-2::foundation-model/qwen.qwen3-coder-30b-a3b-v1:0
+              - arn:aws:bedrock:ap-southeast-2::foundation-model/qwen.qwen3-235b-a22b-2507-v1:0
+              - arn:aws:bedrock:ap-southeast-2::foundation-model/deepseek.v3.2
+
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub "${UserName}-monthly"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetUSD
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+
+Outputs:
+  UserName:
+    Description: Create an access key for this user in IAM, then put it in the dev stack's .env.
+    Value: !Ref BedrockUser
+  CreateAccessKeyUrl:
+    Description: Open this, choose "Create access key", use case "Application running outside AWS".
+    Value: !Sub "https://console.aws.amazon.com/iam/home#/users/details/${BedrockUser}?section=security_credentials"

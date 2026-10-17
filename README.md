@@ -1,8 +1,8 @@
 # limpid-ai-dev-stack
 
-Local AI dev stack for a Windows 11 + WSL2 laptop: llama.cpp for local models, a LiteLLM
-gateway in front of local and OpenRouter models, TypeSafe Jev for cheap routing, OpenClaw for
-chat channels, and example agents.
+AI dev stack for a Windows 11 + WSL2 laptop: a LiteLLM gateway in front of private models on
+Amazon Bedrock (Sydney) and open models on OpenRouter, optional TypeSafe Jev routing, OpenClaw
+for chat channels, and example agents. No model runs on the laptop.
 
 ```bash
 git clone https://github.com/magiccreater/limpid-ai-dev-stack
@@ -12,5 +12,6 @@ git clone https://github.com/magiccreater/limpid-ai-dev-stack
 
 The installer is safe to re-run: it never deletes your folder, `.env` or data, and backs up
 anything it replaces. Full guide: [dev-stack-template/README.md](dev-stack-template/README.md).
+AWS setup for the private models: [dev-stack-template/aws/README.md](dev-stack-template/aws/README.md).
 
 Tests: `python3 -m unittest discover -s tests` (installer) and `just test` inside the stack.
