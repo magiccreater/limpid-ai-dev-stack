@@ -39,7 +39,9 @@ KEEP_FILES=("litellm_config.yaml")
 SHIPPED_SHA256=(
   "e148c490fad2d0907d18c92b852f02bd80dbd593507c3f180c706103c1c41493"  # litellm_config.yaml, first version
   "eda29c194919e20eb6f6ffb12f43cd1837f613766a775950d5f4aab007661686"  # litellm_config.yaml, local-model version
-  "6e813ad2300f0faf0ef842cc87544b9a09f7418ec407f68ab4eaa769b8ba9e1f"  # litellm_config.yaml, first Bedrock version
+  "cfbd62ba7d9670718eaf6250cb4dfb80eace15d96feecd491278e48550eda09c"  # litellm_config.yaml, Bedrock version (4 private models)
+  "e8171a92ab451e4c7241f769b8edc434e2f7ca0849f63826cec96bb1b6e0c9da"  # litellm_config.yaml, Bedrock version (as merged in PR #2)
+  "6e813ad2300f0faf0ef842cc87544b9a09f7418ec407f68ab4eaa769b8ba9e1f"  # litellm_config.yaml, Bedrock version with exact Sydney prices
 )
 # Files from earlier versions of this stack that no longer exist (moved to the backup).
 OBSOLETE_FILES=(
