@@ -11,35 +11,87 @@ CONFIG = yaml.safe_load((STACK / "litellm_config.yaml").read_text())
 MODELS = {m["model_name"]: m for m in CONFIG["model_list"]}
 
 
+PRIVATE = {n: m for n, m in MODELS.items() if n.startswith("private-")}
+ROUTER = CONFIG["router_settings"]
+ALIASES = ROUTER.get("model_group_alias", {})
+FALLBACKS = {k: v for entry in ROUTER["fallbacks"] for k, v in entry.items()}
+
+
+def bedrock_model_id(entry: dict) -> str:
+    return entry["litellm_params"]["model"].removeprefix("bedrock/converse/")
+
+
 class LiteLLMConfigTests(unittest.TestCase):
     def test_master_key_comes_from_env(self):
         self.assertEqual(CONFIG["general_settings"]["master_key"], "os.environ/LITELLM_MASTER_KEY")
 
-    def test_hybrid_fallbacks_are_router_level_and_never_paid_frontier(self):
-        fallbacks = CONFIG["router_settings"]["fallbacks"]
-        chain = next(f["hybrid-agent"] for f in fallbacks if "hybrid-agent" in f)
-        self.assertTrue(chain)
-        self.assertNotIn("cloud-reasoner", chain)
-        for name in chain:
-            self.assertIn(name, MODELS)
+    def test_private_models_are_bedrock_pinned_to_sydney(self):
+        self.assertEqual(set(PRIVATE), {"private-coder", "private-coder-lite", "private-general", "private-reasoner",
+                                        "private-glm"})
+        for name, m in PRIVATE.items():
+            params = m["litellm_params"]
+            self.assertTrue(params["model"].startswith("bedrock/converse/"), name)
+            self.assertEqual(params["aws_region_name"], "ap-southeast-2", name)
+            self.assertNotIn("api_base", params, name)
+            self.assertTrue(m["model_info"].get("supports_function_calling"), name)
+
+    def test_private_models_only_fall_back_to_private_models(self):
+        for group, chain in FALLBACKS.items():
+            target_group = ALIASES.get(group, group)
+            if target_group.startswith("private-"):
+                for name in chain:
+                    self.assertIn(name, PRIVATE, f"{group} falls back to non-private {name}")
         for m in CONFIG["model_list"]:
             self.assertNotIn("fallbacks", m, "fallbacks inside a model entry are ignored by LiteLLM")
 
-    def test_every_paid_model_has_prices_so_budgets_work(self):
+    def test_old_names_are_private_aliases_with_their_own_fallbacks(self):
+        for old in ("local-coder", "hybrid-agent"):
+            self.assertEqual(ALIASES[old], "private-coder")
+            self.assertNotIn(old, MODELS)
+            self.assertTrue(set(FALLBACKS[old]) <= set(PRIVATE), old)
+
+    def test_frontier_is_never_a_fallback(self):
+        for chain in FALLBACKS.values():
+            self.assertNotIn("cloud-reasoner", chain)
+
+    def test_openrouter_models_ask_for_zero_data_retention(self):
         for name, m in MODELS.items():
             if m["litellm_params"]["model"].startswith("openrouter/"):
-                info = m.get("model_info", {})
-                self.assertGreater(info.get("input_cost_per_token", 0), 0, name)
-                self.assertGreater(info.get("output_cost_per_token", 0), 0, name)
+                self.assertEqual(m["litellm_params"].get("extra_body"), {"provider": {"zdr": True}}, name)
 
-    def test_openrouter_has_a_budget_and_frontier_has_its_own_cap(self):
-        budget = CONFIG["router_settings"]["provider_budget_config"]["openrouter"]
-        self.assertGreater(budget["budget_limit"], 0)
+    def test_every_paid_model_has_prices_so_budgets_work(self):
+        for name, m in MODELS.items():
+            info = m.get("model_info", {})
+            self.assertGreater(info.get("input_cost_per_token", 0), 0, name)
+            self.assertGreater(info.get("output_cost_per_token", 0), 0, name)
+
+    def test_each_provider_has_a_daily_budget_and_frontier_its_own_cap(self):
+        budgets = ROUTER["provider_budget_config"]
+        for provider in ("bedrock", "openrouter"):
+            self.assertGreater(budgets[provider]["budget_limit"], 0, provider)
         self.assertGreater(MODELS["cloud-reasoner"]["litellm_params"]["max_budget"], 0)
 
-    def test_local_models_use_env_url(self):
-        for name in ("local-coder", "hybrid-agent"):
-            self.assertEqual(MODELS[name]["litellm_params"]["api_base"], "os.environ/LOCAL_LLM_BASE_URL")
+    def test_no_local_model_remains(self):
+        text = (STACK / "litellm_config.yaml").read_text()
+        self.assertNotIn("LOCAL_LLM_BASE_URL", text)
+        self.assertNotIn("openai/local", text)
+
+
+class AwsPolicyTests(unittest.TestCase):
+    TEMPLATE = (STACK / "aws" / "bedrock-access.yaml").read_text()
+
+    def test_policy_allows_exactly_the_configured_private_models_in_sydney(self):
+        allowed = set(re.findall(r"arn:aws:bedrock:([a-z0-9-]+)::foundation-model/(\S+)", self.TEMPLATE))
+        self.assertEqual({region for region, _ in allowed}, {"ap-southeast-2"})
+        self.assertEqual({model for _, model in allowed}, {bedrock_model_id(m) for m in PRIVATE.values()})
+
+    def test_policy_has_no_wildcards_and_only_invoke_actions(self):
+        self.assertNotRegex(self.TEMPLATE, r"Resource:\s*['\"]?\*")
+        actions = set(re.findall(r"- (bedrock:\w+)", self.TEMPLATE))
+        self.assertEqual(actions, {"bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"})
+
+    def test_stack_is_restricted_to_sydney(self):
+        self.assertIn('!Equals [!Ref "AWS::Region", ap-southeast-2]', self.TEMPLATE)
 
 
 class ExposureTests(unittest.TestCase):

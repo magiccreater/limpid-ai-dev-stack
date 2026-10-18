@@ -33,8 +33,13 @@ TEMPLATE="$SCRIPT_DIR/dev-stack-template"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP="$TARGET/.dev-stack-backup/$STAMP"
 
-# Files you are expected to customise: never replaced, new version written alongside.
+# Files you are expected to customise: never replaced, new version written alongside,
+# unless the file is still exactly a version this repo shipped (then you never edited it).
 KEEP_FILES=("litellm_config.yaml")
+SHIPPED_SHA256=(
+  "e148c490fad2d0907d18c92b852f02bd80dbd593507c3f180c706103c1c41493"  # litellm_config.yaml, first version
+  "eda29c194919e20eb6f6ffb12f43cd1837f613766a775950d5f4aab007661686"  # litellm_config.yaml, local-model version
+)
 # Files from earlier versions of this stack that no longer exist (moved to the backup).
 OBSOLETE_FILES=(
   "vscode/continue-config.json"   # held the published LiteLLM key; now clients/*.tmpl
@@ -42,6 +47,11 @@ OBSOLETE_FILES=(
   "openclaw/openclaw.json.example"
   "shared/llm.py"                 # now shared/devstack_shared/
   "shared/jev_client.py"
+  "scripts/start_llama_server.sh"   # local model removed: private models now run on Bedrock
+  "scripts/install_llama.sh"
+  "scripts/build_llama.sh"
+  "scripts/llama_common.sh"
+  "scripts/windows/llama-server.ps1"
 )
 
 added=0; updated=0; same=0; side_by_side=0; retired=0
@@ -52,6 +62,13 @@ act() { if [ "$DRY_RUN" = 1 ]; then echo "  [dry-run] $*"; else "$@"; fi; }
 is_keep() {
   local f
   for f in "${KEEP_FILES[@]}"; do [ "$1" = "$f" ] && return 0; done
+  return 1
+}
+
+was_shipped() {  # was_shipped FILE: true if FILE is byte-for-byte a version we shipped
+  local sum s
+  sum="$(sha256sum "$1" | cut -d' ' -f1)"
+  for s in "${SHIPPED_SHA256[@]}"; do [ "$sum" = "$s" ] && return 0; done
   return 1
 }
 
@@ -74,13 +91,14 @@ while IFS= read -r -d '' src; do
     added=$((added + 1))
   elif cmp -s "$src" "$dst"; then
     same=$((same + 1))
-  elif is_keep "$rel" && ! grep -q 'sk-dev-proxy-key' "$dst"; then
+  elif is_keep "$rel" && ! grep -q 'sk-dev-proxy-key' "$dst" && ! was_shipped "$dst"; then
     say "  keep     $rel (new version: $rel.dev-stack-new)"
     act cp -p "$src" "$dst.dev-stack-new"
     side_by_side=$((side_by_side + 1))
   else
-    # A kept file that still contains the old published key is replaced too:
-    # leaving it would keep the gateway open to anyone who knows that key.
+    # A kept file that still contains the old published key is replaced too
+    # (leaving it would keep the gateway open to anyone who knows that key), and so is
+    # one you never edited (still exactly a shipped version).
     say "  update   $rel (old copy in .dev-stack-backup/$STAMP/)"
     backup_file "$rel"
     act cp -p "$src" "$dst"
@@ -134,10 +152,10 @@ Next steps:
   cd $TARGET
   ./setup.sh && source ~/.bashrc     # first time only
   # put OPENROUTER_API_KEY in .env (create the key with a credit limit)
-  # local model, pick one:
-  #   Windows (faster on Intel Arc):  scripts\\windows\\llama-server.ps1
-  #   WSL:                            ./scripts/install_llama.sh && just llama
+  # private models: set up Amazon Bedrock (Sydney) once, see aws/README.md,
+  # then put AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in .env
   just litellm                       # gateway on 127.0.0.1:4000
   just client-configs                # Continue + OpenClaw configs with your key
   just doctor
+  just check-models                  # one tiny call to each private model
 EOF

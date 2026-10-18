@@ -165,7 +165,7 @@ Be concrete and actionable. Prefer short checklists.
 
 
 async def llm_review(context: str) -> str:
-    llm = get_llm(tier="hybrid")
+    llm = get_llm(tier="private")
     res = await llm.ainvoke([
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": context},

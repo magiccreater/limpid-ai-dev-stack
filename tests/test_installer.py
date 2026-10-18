@@ -54,7 +54,8 @@ class InstallerTests(unittest.TestCase):
         self.assertIn("installing", out)
         self.assertTrue((self.target / "justfile").is_file())
         self.assertTrue((self.target / ".vscode" / "extensions.json").is_file())
-        self.assertTrue(os.access(self.target / "scripts" / "start_llama_server.sh", os.X_OK))
+        self.assertTrue(os.access(self.target / "setup.sh", os.X_OK))
+        self.assertTrue((self.target / "aws" / "README.md").is_file())
         env = env_values(self.target / ".env")
         self.assertTrue(env["LITELLM_MASTER_KEY"].startswith("sk-"))
         self.assertNotEqual(env["LITELLM_MASTER_KEY"], "sk-dev-proxy-key")
@@ -82,6 +83,9 @@ class InstallerTests(unittest.TestCase):
         (t / "shared").mkdir()
         (t / "vscode" / "continue-config.json").write_text('{"apiKey": "sk-dev-proxy-key"}')
         (t / "shared" / "llm.py").write_text("# old\n")
+        (t / "scripts" / "windows").mkdir(parents=True)
+        (t / "scripts" / "start_llama_server.sh").write_text("llama-server --host 127.0.0.1\n")
+        (t / "scripts" / "windows" / "llama-server.ps1").write_text("# old\n")
         (t / "litellm_config.yaml").write_text("general_settings:\n  master_key: sk-dev-proxy-key\n")
         (t / "justfile").write_text("litellm:\n  litellm --host 0.0.0.0\n")
         (t / ".env").write_text("OPENROUTER_API_KEY=sk-or-mine\nLITELLM_MASTER_KEY=sk-dev-proxy-key\n"
@@ -107,6 +111,10 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse((t / "vscode").exists())
         self.assertFalse((t / "shared" / "llm.py").exists())
         self.assertTrue((t / "shared" / "devstack_shared" / "llm.py").is_file())
+        self.assertFalse((t / "scripts" / "start_llama_server.sh").exists())
+        self.assertFalse((t / "scripts" / "windows").exists())
+        self.assertTrue((b / "scripts" / "start_llama_server.sh").is_file())
+        self.assertTrue((t / "aws" / "bedrock-access.yaml").is_file())
         # user data untouched, key rotated, MySQL password left (with a warning)
         self.assertEqual((t / "my-notes.txt").read_text(), "keep me")
         env = env_values(t / ".env")
@@ -123,6 +131,19 @@ class InstallerTests(unittest.TestCase):
         self.assertIn("# my change", cfg.read_text())
         self.assertTrue((self.target / "litellm_config.yaml.dev-stack-new").is_file())
         self.assertIn("keep     litellm_config.yaml", out)
+
+    def test_unedited_previous_litellm_config_is_upgraded(self):
+        previous = subprocess.run(["git", "-C", str(REPO), "show", "2282ca3:dev-stack-template/litellm_config.yaml"],
+                                  capture_output=True, text=True)
+        if previous.returncode != 0:
+            self.skipTest("git history not available")
+        run_installer(self.target)
+        cfg = self.target / "litellm_config.yaml"
+        cfg.write_text(previous.stdout)
+        out = run_installer(self.target)
+        self.assertIn("update   litellm_config.yaml", out)
+        self.assertIn("private-coder", cfg.read_text())
+        self.assertFalse((self.target / "litellm_config.yaml.dev-stack-new").exists())
 
     def test_dry_run_changes_nothing(self):
         self.make_old_install()

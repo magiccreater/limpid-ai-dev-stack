@@ -22,7 +22,7 @@ Never be preachy or overly long.
 
 
 async def coach(user_message: str, history: list[dict] | None = None) -> str:
-    llm = get_llm(tier="hybrid")
+    llm = get_llm(tier="private")
     messages = [{"role": "system", "content": SYSTEM}]
     if history:
         messages.extend(history)

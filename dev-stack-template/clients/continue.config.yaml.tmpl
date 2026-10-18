@@ -1,22 +1,24 @@
 # Continue (VS Code) config. Rendered to ~/.continue/config.yaml by: just client-configs
 # All models go through your local LiteLLM gateway; the key is your LITELLM_MASTER_KEY.
+# Private models run on Amazon Bedrock in Sydney. No autocomplete model is set: it would
+# send a request on every pause while typing and cost money. Add one if you want it.
 name: Dev Stack
 version: 1.0.0
 schema: v1
 models:
-  - name: Local (free)
+  - name: Private coder (Bedrock Sydney)
     provider: openai
-    model: local-coder
-    apiBase: http://127.0.0.1:4000/v1
-    apiKey: ${LITELLM_MASTER_KEY}
-    roles: [chat, edit, apply, autocomplete]
-  - name: Hybrid (local, then cheap cloud if local fails)
-    provider: openai
-    model: hybrid-agent
+    model: private-coder
     apiBase: http://127.0.0.1:4000/v1
     apiKey: ${LITELLM_MASTER_KEY}
     roles: [chat, edit, apply]
-  - name: DeepSeek V4 Flash (OpenRouter)
+  - name: Private reasoner (Bedrock Sydney)
+    provider: openai
+    model: private-reasoner
+    apiBase: http://127.0.0.1:4000/v1
+    apiKey: ${LITELLM_MASTER_KEY}
+    roles: [chat]
+  - name: Open DeepSeek V4 Flash (OpenRouter, non-sensitive only)
     provider: openai
     model: open-deepseek
     apiBase: http://127.0.0.1:4000/v1

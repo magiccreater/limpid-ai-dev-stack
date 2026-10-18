@@ -12,7 +12,7 @@ services:
       - JWT_SECRET=${ANYTHINGLLM_JWT_SECRET:?run "just env" first}
       # To use LiteLLM, pick "Generic OpenAI" in AnythingLLM's settings with
       #   base URL  http://host.docker.internal:4000/v1
-      #   model     hybrid-agent (or local-coder for fully local)
+      #   model     private-general (Bedrock Sydney)
       #   API key   your LITELLM_MASTER_KEY from .env
       # LiteLLM listens on 127.0.0.1 only. Whether a container can reach that depends on
       # your Docker setup (Docker Desktop vs Docker Engine in WSL). Test the connection

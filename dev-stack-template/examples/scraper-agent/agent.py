@@ -31,7 +31,7 @@ async def scrape_and_extract(url: str, instruction: str) -> dict:
     # Truncate very long pages
     text = text[:12000]
 
-    llm = get_llm(tier="hybrid")
+    llm = get_llm(tier="private")
     prompt = f"""You are a precise data extraction agent.
 URL: {url}
 Instruction: {instruction}
