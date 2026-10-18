@@ -26,7 +26,8 @@ class LiteLLMConfigTests(unittest.TestCase):
         self.assertEqual(CONFIG["general_settings"]["master_key"], "os.environ/LITELLM_MASTER_KEY")
 
     def test_private_models_are_bedrock_pinned_to_sydney(self):
-        self.assertEqual(set(PRIVATE), {"private-coder", "private-coder-lite", "private-general", "private-reasoner"})
+        self.assertEqual(set(PRIVATE), {"private-coder", "private-coder-lite", "private-general", "private-reasoner",
+                                        "private-glm"})
         for name, m in PRIVATE.items():
             params = m["litellm_params"]
             self.assertTrue(params["model"].startswith("bedrock/converse/"), name)

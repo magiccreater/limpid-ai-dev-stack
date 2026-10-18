@@ -113,7 +113,7 @@ class GatewayTests(unittest.TestCase):
         config = (STACK / "litellm_config.yaml").read_text()
         bedrock_budget = "    bedrock:\n      budget_limit: 3.0 "
         assert bedrock_budget in config
-        config = config.replace(bedrock_budget, "    bedrock:\n      budget_limit: 0.04 ")
+        config = config.replace(bedrock_budget, "    bedrock:\n      budget_limit: 0.08 ")
         cfg = Path(cls.tmp.name) / "config.yaml"
         cfg.write_text(config)
         cls.port = free_port()
@@ -182,6 +182,7 @@ class GatewayTests(unittest.TestCase):
             "private-coder-lite": "qwen.qwen3-coder-30b-a3b-v1:0",
             "private-general": "qwen.qwen3-235b-a22b-2507-v1:0",
             "private-reasoner": "deepseek.v3.2",
+            "private-glm": "zai.glm-5",
         }
         for name, model_id in expected.items():
             status, body = self.chat(name)
@@ -200,8 +201,8 @@ class GatewayTests(unittest.TestCase):
             self.assertEqual(body["choices"][0]["message"]["content"], "OK from qwen.qwen3-coder-30b-a3b-v1:0")
         # When every private model is down, the request fails rather than leaving Bedrock.
         self.bedrock.failing.update({"qwen.qwen3-coder-30b-a3b-v1:0", "qwen.qwen3-235b-a22b-2507-v1:0",
-                                     "deepseek.v3.2"})
-        for name in ("private-coder", "private-general", "private-reasoner"):
+                                     "deepseek.v3.2", "zai.glm-5"})
+        for name in ("private-coder", "private-general", "private-reasoner", "private-glm"):
             status, _ = self.chat(name)
             self.assertGreaterEqual(status, 500, name)
         self.assertEqual(self.openrouter.calls, [])
@@ -213,7 +214,7 @@ class GatewayTests(unittest.TestCase):
                              capture_output=True, text=True, timeout=300)
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         lines = res.stdout.strip().splitlines()
-        self.assertEqual(len(lines), 4, res.stdout)
+        self.assertEqual(len(lines), 5, res.stdout)
         for line in lines:
             self.assertRegex(line, r"^ok .*answer ok.*tools ok")
         self.assertTrue(any("toolConfig" in c["body"] for c in self.bedrock.calls))
@@ -225,7 +226,7 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.bedrock.calls, [])
 
     def test_9_bedrock_budget_blocks_further_calls(self):
-        statuses = [self.chat("private-general")[0] for _ in range(30)]
+        statuses = [self.chat("private-glm")[0] for _ in range(30)]
         self.assertIn(429, statuses, statuses)
         self.assertEqual(self.openrouter.calls, [])
 

@@ -55,8 +55,8 @@ VS Code (Cline / Continue / Aider)   OpenClaw (WhatsApp, Telegram…)   example 
               LiteLLM gateway  127.0.0.1:4000  (key required, daily budgets)
                  │                                     │
    PRIVATE: Amazon Bedrock, Sydney              OPEN: OpenRouter, zero data retention
-   Qwen3 Coder Next · Qwen3 Coder 30B           DeepSeek V4 Flash · Qwen3 Coder Next · GLM 5.1
-   Qwen3 235B · DeepSeek V3.2                   Claude Sonnet 5.5 (opt-in, capped)
+   Qwen3 Coder Next · Qwen3 Coder 30B           DeepSeek V4 Flash · Qwen3 Coder Next · GLM 5.3
+   Qwen3 235B · DeepSeek V3.2 · GLM 5           Claude Sonnet 5.5 (opt-in, capped)
    (falls back only within Bedrock)             (non-sensitive work only)
 
    Jev decisions (OpenRouter Decisions API) ← off unless JEV_ENABLED=1
@@ -74,9 +74,10 @@ Every service binds `127.0.0.1`, so nothing is reachable from your network.
 | `private-coder-lite` | Bedrock Sydney | Qwen3 Coder 30B A3B | cheaper coding; fallback | $0.15 / $0.62 |
 | `private-general` | Bedrock Sydney | Qwen3 235B A22B | writing, summaries, chat | $0.23 / $0.91 |
 | `private-reasoner` | Bedrock Sydney | DeepSeek V3.2 | harder reasoning | $0.64 / $1.91 |
+| `private-glm` | Bedrock Sydney | GLM 5 | hardest private work | ~$1.00–1.20 / $3.20–3.84 |
 | `open-deepseek` | OpenRouter | DeepSeek V4 Flash | public data, drafts | $0.14 / $1.28 |
 | `open-qwen` | OpenRouter | Qwen3 Coder Next | public code | $0.12 / $0.80 |
-| `open-glm` | OpenRouter | GLM 5.1 | stronger, public work | $1.40 / $4.40 |
+| `open-glm` | OpenRouter | GLM 5.3 | strongest open model; always reasons (many output tokens) | up to $1.68 / $5.28 |
 | `cloud-reasoner` | OpenRouter | Claude Sonnet 5.5 | rarely; needs `ALLOW_FRONTIER=1` | $2 / $10 |
 
 `local-coder` and `hybrid-agent` (names from earlier versions) are aliases of `private-coder`.
@@ -162,7 +163,7 @@ Open the folder with Remote – WSL. Recommended extensions are in `.vscode/exte
 
 - Never commit `.env` (it is gitignored and created with mode 600).
 - Everything listens on `127.0.0.1`; `just doctor` warns if a port is open on all interfaces.
-- The AWS user can only call the four private models, only in Sydney. Never put root or
+- The AWS user can only call the five private models, only in Sydney. Never put root or
   admin keys in `.env`; rotate the key every few months.
 - Tools are pinned (LiteLLM, OpenClaw, Docker images). LiteLLM's PyPI package was
   compromised in March 2026, so bump versions deliberately and check release notes.

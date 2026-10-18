@@ -1,7 +1,7 @@
 # Private models on Amazon Bedrock (Sydney)
 
 The stack's private models (`private-coder`, `private-coder-lite`, `private-general`,
-`private-reasoner`) run on Amazon Bedrock in **ap-southeast-2 (Sydney)**. AWS says Bedrock
+`private-reasoner`, `private-glm`) run on Amazon Bedrock in **ap-southeast-2 (Sydney)**. AWS says Bedrock
 does not store or log your prompts and completions, does not use them to train models, and
 does not share them with the model makers (Qwen, DeepSeek).
 
@@ -27,6 +27,7 @@ Bedrock console → **Playground → Chat**. Pick each model and send "hi":
 | `private-coder-lite` | Qwen3 Coder 30B A3B | `qwen.qwen3-coder-30b-a3b-v1:0` |
 | `private-general` | Qwen3 235B A22B 2507 | `qwen.qwen3-235b-a22b-2507-v1:0` |
 | `private-reasoner` | DeepSeek V3.2 | `deepseek.v3.2` |
+| `private-glm` | GLM 5 | `zai.glm-5` |
 
 This completes any one-time enablement for your account, so the limited user below never
 needs extra permissions. If a model says it is not available on your plan, note which one;
@@ -44,7 +45,7 @@ CloudFormation → **Create stack → With new resources** → *Upload a templat
   names"* and create the stack.
 
 The stack refuses to deploy outside Sydney. It creates the user `devstack-bedrock`, which can
-call **only** those four models **only** in Sydney: no console access, no other services.
+call **only** those five models **only** in Sydney: no console access, no other services.
 
 Command-line alternative (needs the AWS CLI, signed in as an admin):
 
@@ -86,9 +87,12 @@ without calling the tool; that model is fine for chat but weaker for agent tools
 - **Logging**: Bedrock's model invocation logging is off unless you turn it on; leave it off.
   CloudTrail records that a call happened (time, model, user), not the prompt.
 - **Costs** (Sydney, October 2026, per million tokens in/out): Qwen3 Coder 30B $0.15/$0.62,
-  Qwen3 235B $0.23/$0.91, DeepSeek V3.2 $0.64/$1.91, Qwen3 Coder Next about $0.50/$1.20 (US
-  list price; Sydney may be a little higher). LiteLLM also caps Bedrock at $3/day.
+  Qwen3 235B $0.23/$0.91, DeepSeek V3.2 $0.64/$1.91; Qwen3 Coder Next about $0.50/$1.20 and
+  GLM 5 about $1.00/$3.20 (US list prices; Sydney may be a little higher). LiteLLM also caps Bedrock at $3/day.
 - **Rotate the key** every few months, and deactivate it in IAM at once if it ever leaks.
 - **Adding a model**: add it to `litellm_config.yaml` *and* to the policy's `Resource` list in
   `bedrock-access.yaml`, then update the stack.
+- **GLM 5.3** is newer than GLM 5 but on Bedrock it runs only through a *global* profile
+  (requests may be processed in any region worldwide) and only for eligible accounts, so it
+  is not used as a private model. It is available as `open-glm` through OpenRouter.
 - **Qwen3 Coder 30B** is marked Legacy by AWS (end of life 2027-03-30); replace it before then.

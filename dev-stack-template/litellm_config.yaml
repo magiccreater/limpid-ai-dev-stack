@@ -11,6 +11,9 @@
 #     private-coder-lite  Qwen3 Coder 30B A3B       cheaper; fallback for private-coder
 #     private-general     Qwen3 235B A22B 2507      writing, summaries, general questions
 #     private-reasoner    DeepSeek V3.2             harder reasoning
+#     private-glm         GLM 5                     strongest private model, about 3x the price
+#   (GLM 5.3 is on Bedrock only through a *global* profile that may route outside
+#   Australia, and only for eligible accounts, so it is not a private model here.)
 #   A private model only ever falls back to another private model, never to OpenRouter.
 #   Old names local-coder and hybrid-agent are aliases of private-coder.
 #
@@ -19,7 +22,8 @@
 #   whole account at https://openrouter.ai/settings/privacy.
 #     open-deepseek   DeepSeek V4 Flash   very cheap
 #     open-qwen       Qwen3 Coder Next    cheap
-#     open-glm        GLM 5.1             stronger, about 10x the price
+#     open-glm        GLM 5.3             strongest open model; reasoning always on, so
+#                                         it writes many output tokens (about 10x the price)
 #     cloud-reasoner  Claude Sonnet 5.5   expensive; capped below, and
 #                     shared/devstack_shared/llm.py refuses it unless ALLOW_FRONTIER=1
 #
@@ -72,6 +76,16 @@ model_list:
       output_cost_per_token: 0.00000191   # Sydney $1.9055/M
       supports_function_calling: true
 
+  - model_name: private-glm
+    litellm_params:
+      model: bedrock/converse/zai.glm-5
+      aws_region_name: ap-southeast-2
+      timeout: 600
+    model_info:
+      input_cost_per_token: 0.0000012     # US list price is $1.00/M; rounded up for Sydney
+      output_cost_per_token: 0.00000384   # US $3.20/M
+      supports_function_calling: true
+
   # ---------- Open: OpenRouter (non-sensitive only) ----------
   - model_name: open-deepseek
     litellm_params:
@@ -95,13 +109,13 @@ model_list:
 
   - model_name: open-glm
     litellm_params:
-      model: openrouter/z-ai/glm-5.1
+      model: openrouter/z-ai/glm-5.3
       api_key: os.environ/OPENROUTER_API_KEY
-      timeout: 300
+      timeout: 600                  # reasoning is always on
       extra_body: {provider: {zdr: true}}
-    model_info:
-      input_cost_per_token: 0.0000014
-      output_cost_per_token: 0.0000044
+    model_info:                     # priced at Bedrock's global rate, above OpenRouter's, to be safe
+      input_cost_per_token: 0.00000168
+      output_cost_per_token: 0.00000528
 
   # ---------- Frontier (explicit use only) ----------
   - model_name: cloud-reasoner
@@ -127,6 +141,7 @@ router_settings:
     - private-coder: ["private-coder-lite"]
     - private-general: ["private-coder"]
     - private-reasoner: ["private-general"]
+    - private-glm: ["private-reasoner"]
     - local-coder: ["private-coder-lite"]     # aliases need their own fallback entry
     - hybrid-agent: ["private-coder-lite"]
   num_retries: 1

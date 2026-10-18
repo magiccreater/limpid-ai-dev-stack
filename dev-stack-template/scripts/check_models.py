@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Call each model through the LiteLLM gateway and report whether it answers and calls tools.
 
-  python3 scripts/check_models.py                    # the four private Bedrock models
+  python3 scripts/check_models.py                    # the five private Bedrock models
   python3 scripts/check_models.py open-deepseek      # any model names from litellm_config.yaml
   python3 scripts/check_models.py --no-tools private-coder
 
@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from devstack_env import parse  # noqa: E402
 
-PRIVATE_MODELS = ["private-coder", "private-coder-lite", "private-general", "private-reasoner"]
+PRIVATE_MODELS = ["private-coder", "private-coder-lite", "private-general", "private-reasoner", "private-glm"]
 
 TOOL = {
     "type": "function",
