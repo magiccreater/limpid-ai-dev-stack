@@ -86,9 +86,9 @@ without calling the tool; that model is fine for chat but weaker for agent tools
   to OpenRouter.
 - **Logging**: Bedrock's model invocation logging is off unless you turn it on; leave it off.
   CloudTrail records that a call happened (time, model, user), not the prompt.
-- **Costs** (Sydney, October 2026, per million tokens in/out): Qwen3 Coder 30B $0.15/$0.62,
-  Qwen3 235B $0.23/$0.91, DeepSeek V3.2 $0.64/$1.91; Qwen3 Coder Next about $0.50/$1.20 and
-  GLM 5 about $1.00/$3.20 (US list prices; Sydney may be a little higher). LiteLLM also caps Bedrock at $3/day.
+- **Costs** (Sydney on-demand, October 2026, per million tokens in/out): Qwen3 Coder Next
+  $0.515/$1.236, Qwen3 Coder 30B $0.155/$0.618, Qwen3 235B $0.227/$0.906, DeepSeek V3.2
+  $0.639/$1.906, GLM 5 $1.03/$3.30. That is about 3% more than the US regions. LiteLLM also caps Bedrock at $3/day.
 - **Rotate the key** every few months, and deactivate it in IAM at once if it ever leaks.
 - **Adding a model**: add it to `litellm_config.yaml` *and* to the policy's `Resource` list in
   `bedrock-access.yaml`, then update the stack.
