@@ -1,5 +1,7 @@
 # limpid-ai-dev-stack
 
+The optional [Oracle inference profile](dev-stack-template/oracle/profile) runs a pinned llama.cpp build and Qwen coder model on an Ampere A1 VM. The WSL `god` launcher from the accompanying coding kit handles provisioning, tunnelling and diagnostics. Its default route stays on the VM.
+
 An AI dev stack for a Windows 11 + WSL2 laptop. One LiteLLM gateway (`127.0.0.1:4000`) gives
 your coding tools and agents two kinds of model:
 
