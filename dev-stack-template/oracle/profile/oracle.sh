@@ -20,6 +20,7 @@ case "${1:-help}" in
     ;;
   up)
     [[ -s "$HOME/.oci/config" ]] || { echo "Run god oracle auth first."; exit 1; }
+    python3 "$profile/free_tier.py"
     cidr="${2:-}"
     if [[ -z "$cidr" ]]; then
       cidr="$(curl -4fsS --max-time 8 https://checkip.amazonaws.com)/32" || {

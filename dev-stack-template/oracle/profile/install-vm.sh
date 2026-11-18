@@ -34,8 +34,6 @@ After=network.target
 ExecStart=$command
 DynamicUser=yes
 StateDirectory=god-$name
-Environment=USAGE_DB=/var/lib/god-$name/usage.sqlite
-EnvironmentFile=-/etc/god-$name.env
 NoNewPrivileges=yes
 ProtectHome=yes
 ProtectSystem=strict
