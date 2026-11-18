@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   checks:
+    # Private copies run the checks in WSL to avoid metered hosted runner minutes.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

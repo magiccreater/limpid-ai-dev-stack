@@ -56,12 +56,17 @@ class LiteLLMConfigTests(unittest.TestCase):
 
     def test_openrouter_models_ask_for_zero_data_retention(self):
         for name, m in MODELS.items():
-            if m["litellm_params"]["model"].startswith("openrouter/"):
-                self.assertEqual(m["litellm_params"].get("extra_body"), {"provider": {"zdr": True}}, name)
+            model = m["litellm_params"]["model"]
+            if model.startswith("openrouter/"):
+                policy = {"zdr": False, "data_collection": "allow"} if model.endswith(":free") else {"zdr": True}
+                self.assertEqual(m["litellm_params"].get("extra_body"), {"provider": policy}, name)
 
     def test_every_paid_model_has_prices_so_budgets_work(self):
         for name, m in MODELS.items():
             info = m.get("model_info", {})
+            if m["litellm_params"]["model"].endswith(":free"):
+                self.assertEqual((info.get("input_cost_per_token"), info.get("output_cost_per_token")), (0, 0), name)
+                continue
             self.assertGreater(info.get("input_cost_per_token", 0), 0, name)
             self.assertGreater(info.get("output_cost_per_token", 0), 0, name)
 
