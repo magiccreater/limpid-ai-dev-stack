@@ -29,6 +29,35 @@ client-configs: _check-env
 litellm: _check-env
   litellm --config litellm_config.yaml --host 127.0.0.1 --port 4000
 
+# Stop any background LiteLLM gateway process
+stop:
+  #!/usr/bin/env bash
+  pids=$(pgrep -f '[l]itellm.*--port 4000' || true)
+  if [ -n "$pids" ]; then
+    kill $pids 2>/dev/null || true
+    echo "LiteLLM stopped."
+  else
+    echo "LiteLLM was not running."
+  fi
+
+# Restart the LiteLLM gateway
+restart: stop
+  #!/usr/bin/env bash
+  set -euo pipefail
+  [ -f .env ] && set -a && source .env && set +a
+  export PYTHONUNBUFFERED=1
+  echo "Starting LiteLLM gateway on 127.0.0.1:4000..."
+  nohup litellm --config litellm_config.yaml --host 127.0.0.1 --port 4000 > /tmp/litellm.log 2>&1 &
+  disown
+  for i in $(seq 1 15); do
+    if curl -sf -m 2 http://127.0.0.1:4000/health >/dev/null 2>&1; then
+      echo "LiteLLM is running at http://127.0.0.1:4000"
+      exit 0
+    fi
+    sleep 1
+  done
+  echo "LiteLLM started (PID: $!). Check /tmp/litellm.log"
+
 mysql: _check-env
   docker compose -f docker/docker-compose.mysql.yml up -d
 

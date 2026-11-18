@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Dev stack: Request and manage Amazon Bedrock service quotas for Qwen3 Coder Next
+  (Tokens per minute and Requests per minute) in Sydney (ap-southeast-2).
+
+Parameters:
+  TokensPerMinuteQuotaCode:
+    Type: String
+    Description: >-
+      Service Quota Code for Qwen3 Coder Next Tokens per minute (TPM) in ap-southeast-2.
+      Find this in AWS Console > Service Quotas > Amazon Bedrock, or via:
+      aws service-quotas list-service-quotas --service-code bedrock --region ap-southeast-2
+    Default: "L-BEDROCK-QWEN3-CODER-NEXT-TPM"
+
+  DesiredTokensPerMinute:
+    Type: Number
+    Default: 200000
+    MinValue: 10000
+    Description: Desired Tokens Per Minute (TPM) allocation for Qwen3 Coder Next.
+
+  RequestsPerMinuteQuotaCode:
+    Type: String
+    Description: >-
+      Service Quota Code for Qwen3 Coder Next Invocations / Requests per minute (RPM).
+    Default: "L-BEDROCK-QWEN3-CODER-NEXT-RPM"
+
+  DesiredRequestsPerMinute:
+    Type: Number
+    Default: 50
+    MinValue: 5
+    Description: Desired Requests Per Minute (RPM) allocation for Qwen3 Coder Next.
+
+  EnableRPMIncrease:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Set to true if you also want to request an increase for Requests Per Minute.
+
+Conditions:
+  ShouldRequestRPM: !Equals [!Ref EnableRPMIncrease, "true"]
+
+Rules:
+  SydneyOnly:
+    Assertions:
+      - Assert: !Equals [!Ref "AWS::Region", ap-southeast-2]
+        AssertDescription: Deploy this stack in ap-southeast-2 (Sydney) where your private models run.
+
+Resources:
+  QwenCoderNextTPMQuota:
+    Type: AWS::ServiceQuotas::ServiceQuota
+    Properties:
+      ServiceCode: bedrock
+      QuotaCode: !Ref TokensPerMinuteQuotaCode
+      DesiredValue: !Ref DesiredTokensPerMinute
+
+  QwenCoderNextRPMQuota:
+    Type: AWS::ServiceQuotas::ServiceQuota
+    Condition: ShouldRequestRPM
+    Properties:
+      ServiceCode: bedrock
+      QuotaCode: !Ref RequestsPerMinuteQuotaCode
+      DesiredValue: !Ref DesiredRequestsPerMinute
+
+Outputs:
+  RequestedTPM:
+    Description: Target Tokens Per Minute requested for Qwen3 Coder Next.
+    Value: !Ref DesiredTokensPerMinute
+
+  RequestedRPM:
+    Condition: ShouldRequestRPM
+    Description: Target Requests Per Minute requested for Qwen3 Coder Next.
+    Value: !Ref DesiredRequestsPerMinute

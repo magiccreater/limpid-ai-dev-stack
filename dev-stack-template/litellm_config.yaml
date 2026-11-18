@@ -42,6 +42,8 @@ model_list:
       model: bedrock/converse/qwen.qwen3-coder-next
       aws_region_name: ap-southeast-2
       timeout: 300
+      max_budget: 1.0              # USD per budget_duration for this model ($1/month)
+      budget_duration: 30d
     model_info:
       input_cost_per_token: 0.000000515   # Sydney $0.515/M
       output_cost_per_token: 0.000001236  # Sydney $1.236/M
@@ -52,6 +54,8 @@ model_list:
       model: bedrock/converse/qwen.qwen3-coder-30b-a3b-v1:0
       aws_region_name: ap-southeast-2
       timeout: 300
+      max_budget: 1.0              # USD per budget_duration for this model ($1/month)
+      budget_duration: 30d
     model_info:
       input_cost_per_token: 0.00000016    # Sydney $0.1545/M
       output_cost_per_token: 0.00000062   # Sydney $0.618/M
@@ -62,6 +66,8 @@ model_list:
       model: bedrock/converse/qwen.qwen3-235b-a22b-2507-v1:0
       aws_region_name: ap-southeast-2
       timeout: 300
+      max_budget: 1.0              # USD per budget_duration for this model ($1/month)
+      budget_duration: 30d
     model_info:
       input_cost_per_token: 0.00000023    # Sydney $0.2266/M
       output_cost_per_token: 0.00000091   # Sydney $0.9064/M
@@ -72,6 +78,8 @@ model_list:
       model: bedrock/converse/deepseek.v3.2
       aws_region_name: ap-southeast-2
       timeout: 600
+      max_budget: 1.0              # USD per budget_duration for this model ($1/month)
+      budget_duration: 30d
     model_info:
       input_cost_per_token: 0.00000064    # Sydney $0.6386/M
       output_cost_per_token: 0.00000191   # Sydney $1.9055/M
@@ -82,6 +90,8 @@ model_list:
       model: bedrock/converse/zai.glm-5
       aws_region_name: ap-southeast-2
       timeout: 600
+      max_budget: 1.0              # USD per budget_duration for this model ($1/month)
+      budget_duration: 30d
     model_info:
       input_cost_per_token: 0.00000103    # Sydney $1.03/M
       output_cost_per_token: 0.0000033    # Sydney $3.30/M
@@ -94,6 +104,8 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       timeout: 180
       extra_body: {provider: {zdr: true}}   # only zero-data-retention providers
+      max_budget: 1.0              # USD per budget_duration for this model ($1/month)
+      budget_duration: 30d
     model_info:
       input_cost_per_token: 0.00000014
       output_cost_per_token: 0.00000128
@@ -104,6 +116,8 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       timeout: 180
       extra_body: {provider: {zdr: true}}
+      max_budget: 1.0              # USD per budget_duration for this model ($1/month)
+      budget_duration: 30d
     model_info:
       input_cost_per_token: 0.00000012
       output_cost_per_token: 0.0000008
@@ -114,9 +128,126 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       timeout: 600                  # reasoning is always on
       extra_body: {provider: {zdr: true}}
+      max_budget: 1.0              # USD per budget_duration for this model ($1/month)
+      budget_duration: 30d
     model_info:                     # priced at Bedrock's global rate, above OpenRouter's, to be safe
       input_cost_per_token: 0.00000168
       output_cost_per_token: 0.00000528
+
+  # ---------- Free: OpenRouter :free models (public code only) ----------
+  # No cost, but rate limited and weaker than the open-* models. No free provider offers
+  # zero data retention, so these allow data collection: never send client code, finances
+  # or private repos. Use "free-auto": it starts with the best free model and moves down
+  # the chain in router_settings.fallbacks when one is rate limited or fails.
+  - model_name: free-nemotron-ultra
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-ernie
+    litellm_params:
+      model: openrouter/baidu/ernie-5.5-flash-preview:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-nemotron-super
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3.5-super-vl:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-particle
+    litellm_params:
+      model: openrouter/particle-ai/particle-1:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-flint
+    litellm_params:
+      model: openrouter/recursive/flint-v1.0:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-dots
+    litellm_params:
+      model: openrouter/dots-studio/dots-3-note-preview:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-ling
+    litellm_params:
+      model: openrouter/inclusionai/ling-3.2-flash:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-nemotron-nano
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-gemma-31b
+    litellm_params:
+      model: openrouter/google/gemma-4-31b-it:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-gemma-26b
+    litellm_params:
+      model: openrouter/google/gemma-4-26b-a4b-it:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 300
+      extra_body: {provider: {zdr: false, data_collection: allow}}   # free providers keep prompts
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
 
   # ---------- Frontier (explicit use only) ----------
   - model_name: cloud-reasoner
@@ -125,17 +256,32 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       timeout: 300
       extra_body: {provider: {zdr: true}}
-      max_budget: 1.0              # USD per budget_duration for this model
-      budget_duration: 1d
+      max_budget: 1.0              # USD per budget_duration for this model ($1/month)
+      budget_duration: 30d
     model_info:
       input_cost_per_token: 0.000002
       output_cost_per_token: 0.00001
+
+  - model_name: cloud-opus
+    litellm_params:
+      model: openrouter/anthropic/claude-opus-5.5
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 600
+      extra_body: {provider: {zdr: true}}
+      max_budget: 5.0              # USD per budget_duration for this model ($5/month)
+      budget_duration: 30d
+    model_info:
+      input_cost_per_token: 0.000015   # $15 / M tokens
+      output_cost_per_token: 0.000075  # $75 / M tokens
 
 router_settings:
   # Names from earlier versions of this stack (clients may still use them).
   model_group_alias:
     local-coder: private-coder
     hybrid-agent: private-coder
+    claude-opus: cloud-opus
+    claude-opus-5.5: cloud-opus
+    free-auto: free-nemotron-ultra
   # Fallbacks belong here (not inside a model entry, where LiteLLM ignores them).
   # Private models fall back only to private models.
   fallbacks:
@@ -145,6 +291,16 @@ router_settings:
     - private-glm: ["private-reasoner"]
     - local-coder: ["private-coder-lite"]     # aliases need their own fallback entry
     - hybrid-agent: ["private-coder-lite"]
+    - free-auto:
+        - "free-ernie"
+        - "free-nemotron-super"
+        - "free-particle"
+        - "free-flint"
+        - "free-dots"
+        - "free-ling"
+        - "free-nemotron-nano"
+        - "free-gemma-31b"
+        - "free-gemma-26b"
   num_retries: 1
   # Daily caps per provider. Tracked in memory, so they reset when LiteLLM restarts:
   # the AWS Budget alarm and the OpenRouter key's credit limit are the real backstops.

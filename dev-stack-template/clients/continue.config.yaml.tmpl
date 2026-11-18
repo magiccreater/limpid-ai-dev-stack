@@ -1,26 +1,52 @@
-# Continue (VS Code) config. Rendered to ~/.continue/config.yaml by: just client-configs
-# All models go through your local LiteLLM gateway; the key is your LITELLM_MASTER_KEY.
-# Private models run on Amazon Bedrock in Sydney. No autocomplete model is set: it would
-# send a request on every pause while typing and cost money. Add one if you want it.
-name: Dev Stack
+# Continue config - ONLY 100% FREE MODELS (Zero Credits / Zero Cost)
+name: Dev Stack Free
 version: 1.0.0
 schema: v1
 models:
-  - name: Private coder (Bedrock Sydney)
+  # OpenRouter Free Chain (Cost: $0.00 / Zero Credits)
+  - name: Free Auto (10 Free Models Failover)
+    provider: openai
+    model: free-auto
+    apiBase: http://127.0.0.1:4000/v1
+    apiKey: ${LITELLM_MASTER_KEY}
+    roles: [chat, edit, apply]
+
+  - name: Free Nemotron Ultra (Free)
+    provider: openai
+    model: free-nemotron-ultra
+    apiBase: http://127.0.0.1:4000/v1
+    apiKey: ${LITELLM_MASTER_KEY}
+    roles: [chat, edit, apply]
+
+  - name: Free Ernie 5.5 Flash (Free)
+    provider: openai
+    model: free-ernie
+    apiBase: http://127.0.0.1:4000/v1
+    apiKey: ${LITELLM_MASTER_KEY}
+    roles: [chat, edit, apply]
+
+  - name: Free Gemma 31B (Free)
+    provider: openai
+    model: free-gemma-31b
+    apiBase: http://127.0.0.1:4000/v1
+    apiKey: ${LITELLM_MASTER_KEY}
+    roles: [chat, edit, apply]
+
+  # Bedrock Private Models (Funded by your $140 AWS Credit Grant)
+  - name: Private coder (Bedrock Sydney - Uses $140 AWS Credits)
     provider: openai
     model: private-coder
     apiBase: http://127.0.0.1:4000/v1
     apiKey: ${LITELLM_MASTER_KEY}
     roles: [chat, edit, apply]
-  - name: Private reasoner (Bedrock Sydney)
-    provider: openai
-    model: private-reasoner
-    apiBase: http://127.0.0.1:4000/v1
-    apiKey: ${LITELLM_MASTER_KEY}
-    roles: [chat]
-  - name: Open DeepSeek V4 Flash (OpenRouter, non-sensitive only)
-    provider: openai
-    model: open-deepseek
-    apiBase: http://127.0.0.1:4000/v1
-    apiKey: ${LITELLM_MASTER_KEY}
+
+  # Local Offline (Zero Cost / Zero Network)
+  - name: Local Llama 3.1 8B (Ollama - 100% Free Offline)
+    provider: ollama
+    model: llama3.1:8b
     roles: [chat, edit, apply]
+
+  - name: Local Qwen2.5-Coder (Ollama - 100% Free Autocomplete)
+    provider: ollama
+    model: qwen2.5-coder:1.5b-base
+    roles: [autocomplete]
