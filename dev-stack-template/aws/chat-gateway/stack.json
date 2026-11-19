@@ -8,6 +8,12 @@
       "MinValue": 1,
       "MaxValue": 50,
       "Description": "Maximum Bedrock requests reserved per calendar month in UTC."
+    },
+    "OpenRouterKeyParameter": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^(|/limpid/chat-gateway/[A-Za-z0-9_-]+)$",
+      "Description": "Optional name of a Sydney Standard SecureString containing the public fallback API key."
     }
   },
   "Rules": {
@@ -86,6 +92,21 @@
                       "Arn"
                     ]
                   }
+                },
+                {
+                  "Fn::If": [
+                    "PublicFallbackEnabled",
+                    {
+                      "Effect": "Allow",
+                      "Action": "ssm:GetParameter",
+                      "Resource": {
+                        "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenRouterKeyParameter}"
+                      }
+                    },
+                    {
+                      "Ref": "AWS::NoValue"
+                    }
+                  ]
                 }
               ]
             }
@@ -116,6 +137,17 @@
             },
             "MONTHLY_REQUESTS": {
               "Ref": "MonthlyRequests"
+            },
+            "OPENROUTER_KEY_PARAMETER": {
+              "Fn::If": [
+                "PublicFallbackEnabled",
+                {
+                  "Ref": "OpenRouterKeyParameter"
+                },
+                {
+                  "Ref": "AWS::NoValue"
+                }
+              ]
             }
           }
         }
@@ -266,6 +298,20 @@
       "Value": {
         "Fn::Sub": "https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/pilot/v1"
       }
+    }
+  },
+  "Conditions": {
+    "PublicFallbackEnabled": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "OpenRouterKeyParameter"
+            },
+            ""
+          ]
+        }
+      ]
     }
   }
 }

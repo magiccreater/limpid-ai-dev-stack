@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -23,7 +24,7 @@ def aws_json(profile, region, *args):
     return json.loads(result.stdout) if result.stdout.strip() else {}
 
 
-def preflight(profile, account):
+def preflight(profile, account, openrouter_parameter=""):
     def get(*args, region=REGION):
         return aws_json(profile, region, *args)
 
@@ -42,6 +43,20 @@ def preflight(profile, account):
         raise RuntimeError("Qwen3 Coder Next must be available and authorized in Sydney.")
     if get("bedrock", "get-model-invocation-logging-configuration").get("loggingConfig"):
         raise RuntimeError("Bedrock invocation logging is enabled in Sydney. The private pilot requires it off.")
+    if openrouter_parameter:
+        if not re.fullmatch(r"/limpid/chat-gateway/[A-Za-z0-9_-]+", openrouter_parameter):
+            raise RuntimeError("Use a parameter named /limpid/chat-gateway/NAME.")
+        filters = [{"Key": "Name", "Option": "Equals", "Values": [openrouter_parameter]}]
+        parameters = get("ssm", "describe-parameters", "--parameter-filters", json.dumps(filters))["Parameters"]
+        expected = {
+            "Name": openrouter_parameter,
+            "Type": "SecureString",
+            "Tier": "Standard",
+            "KeyId": "alias/aws/ssm",
+        }
+        if not any(all(item.get(key) == value for key, value in expected.items()) for item in parameters):
+            raise RuntimeError("OpenRouter requires a Sydney Standard SecureString using the AWS managed SSM key.")
+        print("OpenRouter free-auto key metadata verified. Fallback requires the public route.")
     quotas = {
         q["QuotaName"]: q["Value"]
         for q in get("service-quotas", "list-service-quotas", "--service-code", "bedrock")["Quotas"]
@@ -50,9 +65,12 @@ def preflight(profile, account):
     for name in sorted(QUOTAS):
         if name in quotas:
             print(f"{name}: {quotas[name]:g}")
-    if quotas.keys() != QUOTAS or any(value <= 0 for value in quotas.values()):
+    if quotas.keys() == QUOTAS and all(value > 0 for value in quotas.values()):
+        print("Free Plan, selected model, logging, and applied Sydney quotas verified.")
+    elif openrouter_parameter:
+        print("Sydney Bedrock lacks positive applied quotas. Only the configured public fallback can serve requests.")
+    else:
         raise RuntimeError("Sydney Qwen3 Coder Next requires positive applied request and token quotas.")
-    print("Free Plan, selected model, logging, and applied Sydney quotas verified.")
 
 
 def render():
@@ -76,13 +94,14 @@ def main():
     probe = checks.add_parser("preflight")
     probe.add_argument("--profile", required=True)
     probe.add_argument("--account-id", required=True)
+    probe.add_argument("--openrouter-parameter", default="")
     checks.add_parser("render")
     args = parser.parse_args()
     try:
         if args.operation == "render":
             print(json.dumps(render(), indent=2))
         else:
-            preflight(args.profile, args.account_id)
+            preflight(args.profile, args.account_id, args.openrouter_parameter)
     except (KeyError, OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         print(f"chat-gateway: {error}", file=sys.stderr)
         return 1
