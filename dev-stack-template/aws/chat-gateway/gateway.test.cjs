@@ -18,9 +18,10 @@ function event(body = {}) {
   };
 }
 
-async function run(input, { reserve, invoke }) {
+async function run(input, { reserve, invoke, invokeFree }) {
   let status;
   let contentType;
+  let route;
   let payload = "";
   const stream = new Writable({
     write(chunk, encoding, done) {
@@ -31,19 +32,21 @@ async function run(input, { reserve, invoke }) {
   const handler = createHandler({
     reserve,
     invoke,
-    startResponse(raw, responseStatus, responseType) {
+    invokeFree,
+    startResponse(raw, responseStatus, responseType, selectedRoute) {
       status = responseStatus;
       contentType = responseType;
+      route = selectedRoute;
       return raw;
     },
   });
   await handler(input, stream);
   await finished(stream);
-  return { status, contentType, payload };
+  return { status, contentType, route, payload };
 }
 
 test("forces the Sydney model and clamps the output limit", () => {
-  const request = parseRequest(event({ max_completion_tokens: 9000 }));
+  const { request } = parseRequest(event({ max_completion_tokens: 9000 }));
   assert.equal(request.model, "qwen.qwen3-coder-next");
   assert.equal(request.max_tokens, 2048);
   assert.equal(request.max_completion_tokens, undefined);
@@ -97,4 +100,65 @@ test("converts upstream throttling to a safe response", async () => {
   });
   assert.equal(result.status, 429);
   assert.doesNotMatch(result.payload, /private upstream details/);
+});
+
+test("private requests keep the Bedrock 429 even when free-auto is configured", async () => {
+  let freeCalls = 0;
+  const result = await run(event(), {
+    reserve: () => true,
+    invoke: () => new Response("quota", { status: 429 }),
+    invokeFree: () => { freeCalls++; },
+  });
+  assert.equal(result.status, 429);
+  assert.equal(freeCalls, 0);
+});
+
+test("explicit public route falls back to a zero-priced OpenRouter stream on Bedrock 429", async () => {
+  const sse = 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"name":"status"}}]}}]}\n\ndata: [DONE]\n\n';
+  let reservations = 0;
+  let primarySignal;
+  const result = await run(event({
+    model: "private-coder-public", stream: true,
+    tools: [{ type: "function", function: { name: "status" } }],
+  }), {
+    reserve() { reservations++; return true; },
+    invoke(body, signal) {
+      assert.equal(body.model, "qwen.qwen3-coder-next");
+      primarySignal = signal;
+      return new Response("quota", { status: 429 });
+    },
+    invokeFree(body, signal) {
+      assert.equal(signal, primarySignal);
+      assert.equal(body.model, "openrouter/free");
+      assert.equal(body.tools[0].function.name, "status");
+      assert.deepEqual(body.provider, {
+        require_parameters: true,
+        max_price: { prompt: 0, completion: 0, request: 0 },
+      });
+      return new Response(sse, { headers: { "content-type": "text/event-stream" } });
+    },
+  });
+  assert.equal(reservations, 1);
+  assert.equal(result.status, 200);
+  assert.equal(result.route, "free-auto");
+  assert.equal(result.payload, sse);
+});
+
+test("public route requires configuration and preserves Bedrock success or authorization errors", async () => {
+  const input = event({ model: "private-coder-public" });
+  let reservations = 0;
+  const reserve = () => { reservations++; return true; };
+  const off = await run(input, { reserve, invoke: () => assert.fail("Bedrock called while disabled") });
+  assert.equal(off.status, 503);
+  assert.equal(reservations, 0);
+  let freeCalls = 0;
+  for (const status of [200, 403]) {
+    const result = await run(input, {
+      reserve,
+      invoke: () => new Response("{}", { status, headers: { "content-type": "application/json" } }),
+      invokeFree: () => { freeCalls++; },
+    });
+    assert.equal(result.status, status === 200 ? 200 : 502);
+  }
+  assert.equal(freeCalls, 0);
 });
