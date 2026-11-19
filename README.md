@@ -25,6 +25,7 @@ anything it replaces.
 
 - **Full guide** (setup, models, costs, region, tools, troubleshooting):
   [dev-stack-template/README.md](dev-stack-template/README.md)
+- **Sydney IAM-authenticated chat gateway pilot**: [AWS deployment guide](dev-stack-template/aws/chat-gateway/README.md)
 - **AWS setup for the private models** (about 15 minutes):
   [dev-stack-template/aws/README.md](dev-stack-template/aws/README.md)
 

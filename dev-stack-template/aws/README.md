@@ -1,12 +1,13 @@
 # Private models on Amazon Bedrock (Sydney)
 
 The stack's private models (`private-coder`, `private-coder-lite`, `private-general`,
-`private-reasoner`, `private-glm`) run on Amazon Bedrock in **ap-southeast-2 (Sydney)**. AWS says Bedrock
-does not store or log your prompts and completions, does not use them to train models, and
-does not share them with the model makers (Qwen, DeepSeek).
+`private-reasoner`, `private-glm`) run on Amazon Bedrock in **ap-southeast-2 (Sydney)**. Bedrock retention settings vary by model and project. Check the selected model's
+[supported retention modes](https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html)
+and invocation logging before using private inputs.
 
-One-time setup, about 15 minutes. You need a normal AWS account. An AWS Builder ID is a
-different login and cannot use Bedrock.
+This guide covers the local LiteLLM setup with an IAM user and access keys. For a new AWS
+experience project signed in with AWS Builder ID, see the [Sydney gateway pilot](chat-gateway/README.md)
+for a temporary-credential workflow.
 
 ## 1. AWS account
 
