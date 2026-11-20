@@ -85,3 +85,14 @@ class LiteLLMLayaTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, ("fallback answer", routing.FREE_FALLBACK, "rules", None))
         self.assertEqual([call.kwargs["model"] for call in api.await_args_list],
                          ["free-ling", routing.FREE_FALLBACK])
+
+
+    async def test_explicit_public_pool_can_choose_groq_while_openrouter_scope_stays_on_openrouter(self):
+        models = routing.load_free_models(ROOT / "litellm_config.yaml", {"openrouter": "a", "groq": "b"})
+        engine = routing.LayaRouter(models, "test-function", classify=lambda *_: ("quick", 0.9))
+        messages = [{"role": "user", "content": "Fix a small test."}]
+        with patch.object(engine, "acompletion", new_callable=AsyncMock, return_value="answer") as api:
+            await engine.public_completion({"model": "private-coder-public", "messages": messages})
+            await engine.public_completion({"model": "public-free-coder", "messages": messages})
+        self.assertEqual([call.kwargs["model"] for call in api.await_args_list],
+                         ["free-ling", "free-groq-llama-70b"])

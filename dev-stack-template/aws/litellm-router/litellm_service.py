@@ -11,7 +11,7 @@ from botocore.exceptions import ClientError
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from routing import DIRECT, OPENROUTER, PUBLIC_MODEL, LayaRouter, aws, load_free_models
+from routing import DIRECT, OPENROUTER, PUBLIC_FREE_MODEL, PUBLIC_MODEL, LayaRouter, aws, load_free_models
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 MAX_BYTES = 65536
@@ -33,8 +33,8 @@ def validate(body):
         raise HTTPException(400, "Unsupported chat completion fields.")
     if body.get("model") == "private-coder":
         raise HTTPException(503, "No private inference route is enabled in this Free Plan pilot.")
-    if body.get("model") != PUBLIC_MODEL:
-        raise HTTPException(400, "Use private-coder-public to authorize public-only inference.")
+    if body.get("model") not in (PUBLIC_MODEL, PUBLIC_FREE_MODEL):
+        raise HTTPException(400, "Choose an explicit public-only inference route.")
     messages = body.get("messages")
     if not isinstance(messages, list) or not messages or not all(valid_message(m) for m in messages):
         raise HTTPException(400, "Only text messages and function calls are supported.")

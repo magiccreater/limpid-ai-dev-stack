@@ -16,6 +16,7 @@ import yaml
 
 REGION = "ap-southeast-2"
 PUBLIC_MODEL = "private-coder-public"
+PUBLIC_FREE_MODEL = "public-free-coder"
 LAMBDA_MODEL = "laya-typed-decisions"
 FREE_FALLBACK = "free-openrouter-auto"
 OPENROUTER = "openrouter"
@@ -133,6 +134,8 @@ class LayaRouter(litellm.Router):
     def __init__(self, models, function_arn, classify=laya_score):
         super().__init__(model_list=models, num_retries=0, enable_pre_call_checks=True)
         self.names = tuple(m["model_name"] for m in models)
+        self.openrouter_names = tuple(m["model_name"] for m in models
+                                      if m["litellm_params"]["model"].startswith("openrouter/"))
         self.function_arn = function_arn
         self.classify = classify
         self.decisions = OrderedDict()
@@ -163,12 +166,15 @@ class LayaRouter(litellm.Router):
             return choice
 
     async def public_completion(self, request):
+        names = self.names if request["model"] == PUBLIC_FREE_MODEL else self.openrouter_names
+        if not names:
+            raise RuntimeError("No free models are available for this scope.")
         tier, decision, score = await self.choose(*features(request["messages"]))
-        preferred = [name for name in ORDER[tier] if name in self.names]
+        preferred = [name for name in ORDER[tier] if name in names]
         candidates = preferred[:1]
-        if FREE_FALLBACK in self.names:
+        if FREE_FALLBACK in names:
             candidates.append(FREE_FALLBACK)
-        candidates.extend(name for name in preferred[1:] + list(self.names) if name not in candidates)
+        candidates.extend(name for name in preferred[1:] + list(names) if name not in candidates)
         options = {key: value for key, value in request.items() if key != "model"}
         for name in candidates[:2]:
             try:
