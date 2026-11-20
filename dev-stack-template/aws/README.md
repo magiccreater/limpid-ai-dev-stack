@@ -9,6 +9,8 @@ This guide covers the local LiteLLM setup with an IAM user and access keys. For 
 experience project signed in with AWS Builder ID, see the [Sydney gateway pilot](chat-gateway/README.md)
 for a temporary-credential workflow.
 
+For public coding through the AWS-hosted LiteLLM and Laya integration, see the [Sydney LiteLLM router](litellm-router/README.md).
+
 ## 1. AWS account
 
 1. Create an account at https://aws.amazon.com (needs a card). New accounts get free-plan
