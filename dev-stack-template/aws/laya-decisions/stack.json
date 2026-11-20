@@ -161,7 +161,7 @@
           ]
         },
         "MemorySize": 3008,
-        "Timeout": 45,
+        "Timeout": 120,
         "ReservedConcurrentExecutions": 1,
         "Environment": {
           "Variables": {
