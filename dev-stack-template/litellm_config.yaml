@@ -134,6 +134,77 @@ model_list:
       input_cost_per_token: 0.00000168
       output_cost_per_token: 0.00000528
 
+  # ---------- Free: Direct Hosted Open-Source Providers (No OpenRouter required) ----------
+  # Fast, free serverless APIs without self-hosting or paying per token.
+  # Add the matching API key to .env if you use that provider.
+
+  # Groq Cloud: Ultra-fast LPU inference (llama-3.3-70b-versatile, deepseek-r1-distill)
+  - model_name: free-groq-llama-70b
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+      timeout: 120
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-groq-r1
+    litellm_params:
+      model: groq/deepseek-r1-distill-llama-70b
+      api_key: os.environ/GROQ_API_KEY
+      timeout: 180
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  # GitHub Models: Azure AI Studio backed, free with standard GitHub account / PAT
+  - model_name: free-github-r1
+    litellm_params:
+      model: openai/DeepSeek-R1
+      api_base: https://models.inference.ai.azure.com
+      api_key: os.environ/GITHUB_TOKEN
+      timeout: 180
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  - model_name: free-github-llama-70b
+    litellm_params:
+      model: openai/Llama-3.3-70B-Instruct
+      api_base: https://models.inference.ai.azure.com
+      api_key: os.environ/GITHUB_TOKEN
+      timeout: 120
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  # Cerebras Cloud: Wafer-scale chips, 1 Million free tokens / day
+  - model_name: free-cerebras-70b
+    litellm_params:
+      model: cerebras/llama-3.3-70b
+      api_key: os.environ/CEREBRAS_API_KEY
+      timeout: 120
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
+  # SambaNova Cloud: Runs the full 405B flagship model for free on SN40L chips
+  - model_name: free-sambanova-405b
+    litellm_params:
+      model: openai/Meta-Llama-3.1-405B-Instruct
+      api_base: https://api.sambanova.ai/v1
+      api_key: os.environ/SAMBANOVA_API_KEY
+      timeout: 180
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      supports_function_calling: true
+
   # ---------- Free: OpenRouter :free models (public code only) ----------
   # No cost, but rate limited and weaker than the open-* models. No free provider offers
   # zero data retention, so these allow data collection: never send client code, finances
@@ -282,6 +353,11 @@ router_settings:
     claude-opus: cloud-opus
     claude-opus-5.5: cloud-opus
     free-auto: free-nemotron-ultra
+    free-coder: free-nemotron-ultra
+    free-groq: free-groq-llama-70b
+    free-github: free-github-r1
+    free-cerebras: free-cerebras-70b
+    free-sambanova: free-sambanova-405b
   # Fallbacks belong here (not inside a model entry, where LiteLLM ignores them).
   # Private models fall back only to private models.
   fallbacks:
