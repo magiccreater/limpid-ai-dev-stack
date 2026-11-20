@@ -64,7 +64,7 @@ class LiteLLMConfigTests(unittest.TestCase):
     def test_every_paid_model_has_prices_so_budgets_work(self):
         for name, m in MODELS.items():
             info = m.get("model_info", {})
-            if m["litellm_params"]["model"].endswith(":free"):
+            if m["litellm_params"]["model"].endswith(":free") or name.startswith("free-"):
                 self.assertEqual((info.get("input_cost_per_token"), info.get("output_cost_per_token")), (0, 0), name)
                 continue
             self.assertGreater(info.get("input_cost_per_token", 0), 0, name)
