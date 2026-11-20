@@ -160,7 +160,7 @@
             "Arn"
           ]
         },
-        "MemorySize": 3072,
+        "MemorySize": 3008,
         "Timeout": 45,
         "ReservedConcurrentExecutions": 1,
         "Environment": {
