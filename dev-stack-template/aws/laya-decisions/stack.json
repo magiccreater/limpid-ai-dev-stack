@@ -1,0 +1,195 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "IAM-invoked Sydney Laya decision pilot. No public endpoint.",
+  "Parameters": {
+    "ImageDigest": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^sha256:[0-9a-f]{64}$"
+    },
+    "MonthlyDecisions": {
+      "Type": "Number",
+      "Default": 30,
+      "MinValue": 1,
+      "MaxValue": 60
+    }
+  },
+  "Conditions": {
+    "HasImage": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "ImageDigest"
+            },
+            ""
+          ]
+        }
+      ]
+    }
+  },
+  "Resources": {
+    "Registry": {
+      "Type": "AWS::ECR::Repository",
+      "Properties": {
+        "RepositoryName": {
+          "Ref": "AWS::StackName"
+        },
+        "ImageTagMutability": "IMMUTABLE",
+        "EmptyOnDelete": true,
+        "RepositoryPolicyText": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": [
+                "ecr:BatchGetImage",
+                "ecr:GetDownloadUrlForLayer"
+              ],
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "Usage": {
+      "Type": "AWS::DynamoDB::Table",
+      "Condition": "HasImage",
+      "Properties": {
+        "BillingMode": "PAY_PER_REQUEST",
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "month",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "month",
+            "KeyType": "HASH"
+          }
+        ]
+      }
+    },
+    "Logs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Condition": "HasImage",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AWS::StackName}"
+        },
+        "RetentionInDays": 3
+      }
+    },
+    "Role": {
+      "Type": "AWS::IAM::Role",
+      "Condition": "HasImage",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "DecisionCounterAndLogs",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "dynamodb:UpdateItem",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Usage",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${Logs}:log-stream:*"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Decision": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "HasImage",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "AWS::StackName"
+        },
+        "PackageType": "Image",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "ImageUri": {
+            "Fn::Sub": "${Registry.RepositoryUri}@${ImageDigest}"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "Role",
+            "Arn"
+          ]
+        },
+        "MemorySize": 3072,
+        "Timeout": 45,
+        "ReservedConcurrentExecutions": 1,
+        "Environment": {
+          "Variables": {
+            "USAGE_TABLE": {
+              "Ref": "Usage"
+            },
+            "MONTHLY_DECISIONS": {
+              "Ref": "MonthlyDecisions"
+            }
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "RepositoryUri": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Registry",
+          "RepositoryUri"
+        ]
+      }
+    },
+    "FunctionName": {
+      "Condition": "HasImage",
+      "Value": {
+        "Ref": "Decision"
+      }
+    }
+  }
+}
