@@ -1,0 +1,356 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Sydney IAM LiteLLM gateway with AWS-to-AWS Laya decisions for approved public free models.",
+  "Parameters": {
+    "ImageDigest": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^sha256:[0-9a-f]{64}$"
+    },
+    "UsageTable": {
+      "Type": "String",
+      "AllowedPattern": "^[A-Za-z0-9_.-]{3,255}$"
+    },
+    "MonthlyRequests": {
+      "Type": "Number",
+      "Default": 20,
+      "MinValue": 1,
+      "MaxValue": 50,
+      "Description": "Maximum Bedrock requests reserved per calendar month in UTC."
+    },
+    "FreeProviders": {
+      "Type": "String",
+      "Default": "openrouter",
+      "AllowedPattern": "(openrouter|groq|github|cerebras|sambanova)(,(openrouter|groq|github|cerebras|sambanova))*"
+    }
+  },
+  "Conditions": {
+    "HasImage": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "ImageDigest"
+            },
+            ""
+          ]
+        }
+      ]
+    }
+  },
+  "Resources": {
+    "Registry": {
+      "Type": "AWS::ECR::Repository",
+      "Properties": {
+        "RepositoryName": {
+          "Ref": "AWS::StackName"
+        },
+        "ImageTagMutability": "IMMUTABLE",
+        "EmptyOnDelete": true,
+        "RepositoryPolicyText": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": [
+                "ecr:BatchGetImage",
+                "ecr:GetDownloadUrlForLayer"
+              ],
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "Logs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Condition": "HasImage",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AWS::StackName}"
+        },
+        "RetentionInDays": 3
+      }
+    },
+    "Role": {
+      "Type": "AWS::IAM::Role",
+      "Condition": "HasImage",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "DecisionCounterAndLogs",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "dynamodb:UpdateItem",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UsageTable}"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${Logs}:log-stream:*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "lambda:InvokeFunction",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:limpid-laya-decisions"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "ssm:GetParameter",
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/limpid/chat-gateway/openrouter"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/limpid/litellm/free/groq"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/limpid/litellm/free/github"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/limpid/litellm/free/cerebras"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/limpid/litellm/free/sambanova"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Gateway": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "HasImage",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "AWS::StackName"
+        },
+        "PackageType": "Image",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "ImageUri": {
+            "Fn::Sub": "${Registry.RepositoryUri}@${ImageDigest}"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "Role",
+            "Arn"
+          ]
+        },
+        "MemorySize": 1024,
+        "Timeout": 75,
+        "ReservedConcurrentExecutions": 2,
+        "Environment": {
+          "Variables": {
+            "USAGE_TABLE": {
+              "Ref": "UsageTable"
+            },
+            "MONTHLY_REQUESTS": {
+              "Ref": "MonthlyRequests"
+            },
+            "FREE_PROVIDERS": {
+              "Ref": "FreeProviders"
+            },
+            "LAYA_FUNCTION_ARN": {
+              "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:limpid-laya-decisions"
+            }
+          }
+        }
+      }
+    },
+    "Api": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-chat"
+        },
+        "EndpointConfiguration": {
+          "Types": [
+            "REGIONAL"
+          ]
+        },
+        "Policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "execute-api:Invoke",
+              "Resource": "execute-api:/*",
+              "Condition": {
+                "StringNotEquals": {
+                  "aws:PrincipalAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "Condition": "HasImage"
+    },
+    "V1": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ParentId": {
+          "Fn::GetAtt": [
+            "Api",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "v1"
+      },
+      "Condition": "HasImage"
+    },
+    "Chat": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ParentId": {
+          "Ref": "V1"
+        },
+        "PathPart": "chat"
+      },
+      "Condition": "HasImage"
+    },
+    "Completions": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ParentId": {
+          "Ref": "Chat"
+        },
+        "PathPart": "completions"
+      },
+      "Condition": "HasImage"
+    },
+    "ChatPost": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ResourceId": {
+          "Ref": "Completions"
+        },
+        "HttpMethod": "POST",
+        "AuthorizationType": "AWS_IAM",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "ResponseTransferMode": "STREAM",
+          "TimeoutInMillis": 45000,
+          "Uri": {
+            "Fn::Sub": "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2021-11-15/functions/${Gateway.Arn}/response-streaming-invocations"
+          }
+        }
+      },
+      "Condition": "HasImage"
+    },
+    "AllowGateway": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Gateway"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/pilot/POST/v1/chat/completions"
+        }
+      },
+      "Condition": "HasImage"
+    },
+    "Deployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": [
+        "ChatPost",
+        "AllowGateway"
+      ],
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        }
+      },
+      "Condition": "HasImage"
+    },
+    "Stage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "StageName": "pilot",
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "DeploymentId": {
+          "Ref": "Deployment"
+        },
+        "MethodSettings": [
+          {
+            "ResourcePath": "/*",
+            "HttpMethod": "*",
+            "DataTraceEnabled": false,
+            "ThrottlingRateLimit": 1,
+            "ThrottlingBurstLimit": 3
+          }
+        ]
+      },
+      "Condition": "HasImage"
+    }
+  },
+  "Outputs": {
+    "BaseUrl": {
+      "Description": "IAM-authenticated Sydney LiteLLM Chat Completions API.",
+      "Value": {
+        "Fn::Sub": "https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/pilot/v1"
+      },
+      "Condition": "HasImage"
+    }
+  }
+}
